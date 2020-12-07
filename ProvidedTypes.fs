@@ -1009,7 +1009,7 @@ namespace ProviderImplementation.ProvidedTypes
         /// The public constructor for the design-time/source model
         new (methodName, parameters, returnType, ?invokeCode, ?isStatic) =
             let isStatic = defaultArg isStatic false
-            let attrs = if isStatic then MethodAttributes.Public ||| MethodAttributes.Static else MethodAttributes.Public
+            let attrs = if isStatic then MethodAttributes.Public ||| MethodAttributes.Static  ||| MethodAttributes.Abstract else MethodAttributes.Public ||| MethodAttributes.Abstract
             ProvidedMethod(false, methodName, attrs, Array.ofList parameters, returnType, invokeCode, [], None, K [| |])
 
         member __.AddXmlDocComputed xmlDocFunction = customAttributesImpl.AddXmlDocComputed xmlDocFunction
@@ -1111,7 +1111,7 @@ namespace ProviderImplementation.ProvidedTypes
         new (propertyName, propertyType, ?getterCode, ?setterCode, ?isStatic, ?indexParameters) =
             let isStatic = defaultArg isStatic false
             let indexParameters = defaultArg indexParameters []
-            let pattrs = (if isStatic then MethodAttributes.Static else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName
+            let pattrs = (if isStatic then MethodAttributes.Static else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.Abstract 
             let getter = getterCode |> Option.map (fun _ -> ProvidedMethod(false, "get_" + propertyName, pattrs, Array.ofList indexParameters, propertyType, getterCode, [], None, K [| |]) :> MethodInfo)
             let setter = setterCode |> Option.map (fun _ -> ProvidedMethod(false, "set_" + propertyName, pattrs, [| yield! indexParameters; yield ProvidedParameter(false, "value",propertyType,isOut=Some false,optionalValue=None) |], typeof<Void>, setterCode, [], None, K [| |]) :> MethodInfo)
             ProvidedProperty(false, propertyName, PropertyAttributes.None, propertyType, isStatic, Option.map K getter, Option.map K setter, Array.ofList indexParameters, K [| |])
@@ -1526,7 +1526,7 @@ namespace ProviderImplementation.ProvidedTypes
                 // This is performance critical for large spaces of provided methods and properties
                 // Save a table of the methods grouped by name
                 let table = 
-                    save (bindingFlags ||| BindingFlags.InvokeMethod) (fun () -> 
+                    save (bindingFlags ||| BindingFlags.InvokeMethod ||| BindingFlags.DeclaredOnly) (fun () -> 
                         let methods = this.GetMethods bindingFlags
                         methods |> Seq.groupBy (fun m -> m.Name) |> Seq.map (fun (k,v) -> k, Seq.toArray v) |> dict)
                 
@@ -1543,7 +1543,7 @@ namespace ProviderImplementation.ProvidedTypes
         override __.GetPropertyImpl(name, bindingFlags, _binder, _returnType, _types, _modifiers) =
             (//save ("prop1", bindingFlags, Some name) (fun () -> 
                 let table = 
-                    save (bindingFlags ||| BindingFlags.GetProperty) (fun () -> 
+                    save (bindingFlags ||| BindingFlags.GetProperty ||| BindingFlags.DeclaredOnly) (fun () -> 
                         let methods = this.GetProperties bindingFlags
                         methods |> Seq.groupBy (fun m -> m.Name) |> Seq.map (fun (k,v) -> k, Seq.toArray v) |> dict)
                 let xs = if table.ContainsKey name then table.[name] else [| |]

@@ -30,12 +30,13 @@ let makeProperty(name: string, type': ErasedType) =
     ProvidedProperty(name, makeType type', (fun args -> args.[0]))
 
 let makeInterfaceTypeWithMembers (name: string, members: #MemberInfo list) =
-    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = true)
+    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true, isInterface = true)
+    
     t.AddMembers(members)
     t
 
 let makeInterfaceType(name: string) =
-    ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = true)
+    ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true, isInterface = true)
 
 let makeMethod(name: string, params': (string * ErasedType) list, returnType: ErasedType) = 
     ProvidedMethod(
@@ -50,6 +51,6 @@ let makeMethod(name: string, params': (string * ErasedType) list, returnType: Er
 //    upcast t
 
 let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, members: #MemberInfo list) =
-    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true)
+    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true)
     root.AddMembers members
     root
