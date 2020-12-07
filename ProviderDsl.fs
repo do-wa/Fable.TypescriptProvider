@@ -4,11 +4,6 @@ open System.Reflection
 open FSharp.Quotations
 open ProviderImplementation.ProvidedTypes
 
-type Member =
-    | ChildType of System.Type
-    | Property of name: string * typ: ErasedType 
-    | Method of name: string * args: (string * ErasedType) list * typ: ErasedType * isStatic: bool * body: (Expr list -> Expr)
-    | Constructor of args: (string * ErasedType) list * body: (Expr list -> Expr)
 
 type ErasedType =
     | Any
@@ -20,21 +15,6 @@ type ErasedType =
     | Option of ErasedType
     | Custom of System.Type
 
-let addMembers (t: ProvidedTypeDefinition) members =
-    for memb in members do
-        let memb: MemberInfo =
-            match memb with
-            | ChildType t ->
-                upcast t
-            | Property(name, typ) ->
-                upcast ProvidedProperty(name, makeType typ, (fun args -> args.[0]))
-            | Method(name, args, typ, isStatic, body) ->
-                let args = args |> List.map (fun (name, t) -> ProvidedParameter(name, makeType t))
-                upcast ProvidedMethod(name, args, makeType typ, isStatic = isStatic, invokeCode = body)  
-            | Constructor(args, body) ->
-                let args = args |> List.map (fun (name, t) -> ProvidedParameter(name, makeType t))
-                upcast ProvidedConstructor(args, invokeCode = body)  
-        t.AddMember(memb)
 
 let makeType = function
     | Any -> typeof<obj>
@@ -46,13 +26,30 @@ let makeType = function
     | Option t -> typedefof<Option<obj>>.MakeGenericType(makeType t)
     | Custom t -> t
 
-let makeCustomType(name: string, members: Member list, isInterface: bool): System.Type =
-    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = isInterface)
-    addMembers t members
-    upcast t
+let makeProperty(name: string, type': ErasedType) = 
+    ProvidedProperty(name, makeType type', (fun args -> args.[0]))
 
-let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, members: Member list) =
+let makeInterfaceTypeWithMembers (name: string, members: #MemberInfo list) =
+    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = true)
+    t.AddMembers(members)
+    t
+
+let makeInterfaceType(name: string) =
+    ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = true)
+
+let makeMethod(name: string, params': (string * ErasedType) list, returnType: ErasedType) = 
+    ProvidedMethod(
+        name, 
+        params' |> List.map(fun (name, type') -> ProvidedParameter(name, makeType type')),
+        makeType returnType
+    )
+
+//let makeCustomType(name: string, members: Member list, isInterface: bool): System.Type =
+//    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true, isInterface = isInterface)
+//    addMembers t members
+//    upcast t
+
+let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, members: #MemberInfo list) =
     let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, isErased = true)
-    
-    addMembers root members
+    root.AddMembers members
     root

@@ -2,8 +2,8 @@
 
 type X = Fable.TypescriptProvider.Generator<"Bla">
 
-let testCall (test: X.test2.test.TooltipProps) = 
-    test
+let testCall (test: X.test.TooltipProps) = 
+    
 
 
 let y = testCall { afterHide = ""}
