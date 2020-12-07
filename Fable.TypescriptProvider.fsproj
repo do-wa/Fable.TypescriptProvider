@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <TargetFramework>netstandard2.0</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="Script1.fsx" />
+    <Compile Include="ProvidedTypes.fs" />
+    <Compile Include="ProviderDsl.fs" />
+    <Compile Include="Fable.TypescriptProvider.fs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Chiron" Version="6.3.1" />
+    <PackageReference Include="FSharp.Compiler.Service" Version="38.0.0" />
+    <PackageReference Include="Microsoft.FSharpLu.Json" Version="0.11.6">
+      <IncludeAssets></IncludeAssets>
+    </PackageReference>
+    <PackageReference Include="Thoth.Json.Net" Version="5.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="ts2fable-master\src\ts2fable.fsproj" />
+  </ItemGroup>
+
+</Project>

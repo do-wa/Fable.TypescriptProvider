@@ -1,0 +1,112 @@
+{
+  "files": [
+    "dist/"
+  ],
+  "main": "./dist/ts2fable.js",
+  "bin": {
+    "ts2fable": "./dist/ts2fable.js"
+  },
+  "name": "ts2fable",
+  "version": "0.0.0",
+  "description": "TypeScript definition files parser for fable-compiler",
+  "scripts": {
+    "__postinstall": "node ./node_modules/vscode/bin/install",
+    "__build": "fable-splitter ./src/ts2fable.fsproj -c ./tools/splitter.config.js",
+    "build": "fable-splitter ./src/ts2fable.fsproj -o ./out",
+    "postbuild": "rollup ./out/ts2fable.js --file ./dist/ts2fable.js --format umd --name ts2fable",
+    "build-cli": "webpack --config ./tools/webpack.config.cli.js",
+    "build-test": "webpack --config ./tools/webpack.config.test.js",
+    "build-test2": "fable-splitter ./test/test.fsproj -o ./build --commonjs",
+    "watch-cli": "webpack -w --config ./tools/webpack.config.cli.js",
+    "watch-test": "webpack -w --config ./tools/webpack.config.test.js",
+    "webapp-build": "webpack -p --config ./web-app/webpack.config.js",
+    "webapp-watch": "webpack-dev-server -w --config ./web-app/webpack.config.js",
+    "test": "mocha ./build/test.js"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/fable-compiler/ts2fable"
+  },
+  "keywords": [
+    "fable",
+    "fable-compiler",
+    "fsharp",
+    "F#",
+    "TypeScript"
+  ],
+  "author": "Alfonso Garcia-Caro (https://twitter.com/alfonsogcnunez)",
+  "license": "Apache-2.0",
+  "bugs": {
+    "url": "https://github.com/fable-compiler/ts2fable/issues"
+  },
+  "homepage": "https://github.com/fable-compiler/ts2fable#readme",
+  "dependencies": {
+    "typescript": "3.7.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.7.7",
+    "@babel/plugin-external-helpers": "^7.7.4",
+    "@babel/plugin-proposal-class-properties": "^7.7.4",
+    "@babel/plugin-transform-modules-commonjs": "^7.7.5",
+    "@babel/plugin-transform-runtime": "^7.7.6",
+    "@babel/polyfill": "^7.7.0",
+    "@babel/preset-env": "^7.7.7",
+    "@babel/preset-react": "^7.7.4",
+    "@babel/register": "^7.7.7",
+    "@types/chai": "^4.0.4",
+    "@types/google-protobuf": "^3.2.7",
+    "@types/jquery": "^3.2.16",
+    "@types/mocha": "^2.2.44",
+    "@types/node": "^8.0.56",
+    "@types/react": "16.0.4",
+    "@types/react-native": "^0.56.4",
+    "@types/yargs": "^13.0.3",
+    "babel-loader": "^8.0.6",
+    "breeze-client": "^1.7.1",
+    "bulma": "^0.7.4",
+    "bulma-pageloader": "^2.1.0",
+    "bulma-tooltip": "^2.0.1",
+    "chai": "^4.1.2",
+    "chalk": "^2.3.0",
+    "clipboard": "^2.0.1",
+    "copy-webpack-plugin": "^5.1.1",
+    "cross-env": "^5.1.1",
+    "css-loader": "^1.0.0",
+    "electron": "^1.7.9",
+    "eslint-scope": "3.7.1",
+    "fable-compiler": "^2.4.12",
+    "fable-compiler-js": "^1.2.1",
+    "fable-loader": "^2.1.8",
+    "fable-splitter": "^2.1.11",
+    "fable-utils": "^1.2.0",
+    "file-loader": "^1.1.11",
+    "font-awesome": "^4.7.0",
+    "gh-pages": "^1.2.0",
+    "html-webpack-plugin": "^3.2.0",
+    "izitoast": "^1.1.5",
+    "mini-css-extract-plugin": "^0.4.1",
+    "mocha": "^6.2.2",
+    "mocha-appveyor-reporter": "^0.4.0",
+    "monaco-editor": "^0.10.1",
+    "node-sass": "^4.14.1",
+    "office-ui-fabric-react": "^5.67.0",
+    "prepend-file": "^1.3.1",
+    "prop-types": "^15.6.2",
+    "react": "^16.4.1",
+    "react-dom": "^16.4.1",
+    "react-monaco-editor": "0.13.0",
+    "react-resize-detector": "^3.0.1",
+    "reactxp": "^1.0.2",
+    "requirejs": "^2.3.5",
+    "rollup": "^1.27.14",
+    "sass-loader": "^7.0.3",
+    "style-loader": "^0.21.0",
+    "vscode": "^1.1.36",
+    "webpack": "^4.41.5",
+    "webpack-cli": "^3.3.10",
+    "webpack-dev-server": "^3.10.1"
+  },
+  "engines": {
+    "vscode": "^1.18.1"
+  }
+}

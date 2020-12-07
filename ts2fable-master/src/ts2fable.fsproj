@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <OutputType>Library</OutputType>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="node/fileSystem.fs" />
+    <Compile Include="TypeScript.fs" />
+    <Compile Include="keywords.fs" />
+    <Compile Include="naming.fs" />
+    <Compile Include="syntax.fs" />
+    <Compile Include="read.fs" />
+    <Compile Include="node/version.fs" />
+    <Compile Include="print.fs" />
+    <Compile Include="transform.fs" />
+    <Compile Include="node/transform.fs" />
+    <Compile Include="bridge.fs" />
+    <Compile Include="write.fs" />
+    <Compile Include="node/write.fs" />
+    <Compile Include="ts2fable.fs" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Fable.Core" Version="3.1.4" />
+    <PackageReference Include="Fable.Node" Version="1.0.2" />
+  </ItemGroup>
+  <Import Project="..\.paket\Paket.Restore.targets" />
+</Project>
