@@ -123,6 +123,8 @@ module TypescriptProvider =
         let ns = "Fable.TypescriptProvider"
 
         let staticParams = [ProvidedStaticParameter("module",typeof<string>)]
+        // TODO rename generator (borrowed from JsonProvider). 
+        // Add Options to add additional "render" method into type for direct react component import (main motivation for this project)
         let generator = ProvidedTypeDefinition(asm, ns, "Generator", Some typeof<obj>, isErased = true)
 
         do generator.DefineStaticParameters(
@@ -130,6 +132,7 @@ module TypescriptProvider =
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
                     | [| :? string as arg|] ->
+                        // TODO: import d.ts file from filesystem, call ts2fable 
                         match Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> sample with
                         | Error err -> failwith err
                         | Ok tsType -> 
