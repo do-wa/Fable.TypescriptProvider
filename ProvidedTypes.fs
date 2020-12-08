@@ -1007,9 +1007,10 @@ namespace ProviderImplementation.ProvidedTypes
         let customAttributesImpl = CustomAttributesImpl(isTgt, customAttributesData)
 
         /// The public constructor for the design-time/source model
-        new (methodName, parameters, returnType, ?invokeCode, ?isStatic) =
+        new (methodName, parameters, returnType, isAbstract, ?invokeCode, ?isStatic) =
             let isStatic = defaultArg isStatic false
-            let attrs = if isStatic then MethodAttributes.Public ||| MethodAttributes.Static  ||| MethodAttributes.Abstract else MethodAttributes.Public ||| MethodAttributes.Abstract
+            
+            let attrs = if isStatic then MethodAttributes.Public ||| MethodAttributes.Static elif isAbstract then  MethodAttributes.Public ||| MethodAttributes.Abstract else MethodAttributes.Public 
             ProvidedMethod(false, methodName, attrs, Array.ofList parameters, returnType, invokeCode, [], None, K [| |])
 
         member __.AddXmlDocComputed xmlDocFunction = customAttributesImpl.AddXmlDocComputed xmlDocFunction
@@ -1108,13 +1109,13 @@ namespace ProviderImplementation.ProvidedTypes
         let customAttributesImpl = CustomAttributesImpl(isTgt, customAttributesData)
 
         /// The public constructor for the design-time/source model
-        new (propertyName, propertyType, ?getterCode, ?setterCode, ?isStatic, ?indexParameters) =
+        new (propertyName, propertyType, isAbstract, ?getterCode, ?setterCode, ?isStatic, ?indexParameters) =
             let isStatic = defaultArg isStatic false
             let indexParameters = defaultArg indexParameters []
-            let pattrs = (if isStatic then MethodAttributes.Static else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.Abstract 
+            let pattrs = (if isStatic then MethodAttributes.Static elif isAbstract then MethodAttributes.Public ||| MethodAttributes.Abstract  else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName 
             let getter = getterCode |> Option.map (fun _ -> ProvidedMethod(false, "get_" + propertyName, pattrs, Array.ofList indexParameters, propertyType, getterCode, [], None, K [| |]) :> MethodInfo)
             let setter = setterCode |> Option.map (fun _ -> ProvidedMethod(false, "set_" + propertyName, pattrs, [| yield! indexParameters; yield ProvidedParameter(false, "value",propertyType,isOut=Some false,optionalValue=None) |], typeof<Void>, setterCode, [], None, K [| |]) :> MethodInfo)
-            ProvidedProperty(false, propertyName, PropertyAttributes.None, propertyType, isStatic, Option.map K getter, Option.map K setter, Array.ofList indexParameters, K [| |])
+            ProvidedProperty(false, propertyName, PropertyAttributes.None, propertyType, isStatic, Option.map K getter, Option.map K setter, Array.ofList indexParameters, K [||])
 
         member __.AddXmlDocComputed xmlDocFunction = customAttributesImpl.AddXmlDocComputed xmlDocFunction
         member __.AddXmlDocDelayed xmlDocFunction = customAttributesImpl.AddXmlDocDelayed xmlDocFunction
@@ -1164,7 +1165,7 @@ namespace ProviderImplementation.ProvidedTypes
 
         new (eventName, eventHandlerType, adderCode, removerCode, ?isStatic) = 
             let isStatic = defaultArg isStatic false
-            let pattrs = (if isStatic then MethodAttributes.Static else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName
+            let pattrs = (if isStatic then MethodAttributes.Static else enum<MethodAttributes>(0)) ||| MethodAttributes.Public ||| MethodAttributes.SpecialName ||| MethodAttributes.Abstract
             let adder = ProvidedMethod(false, "add_" + eventName, pattrs, [| ProvidedParameter(false, "handler", eventHandlerType, isOut=Some false, optionalValue=None) |], typeof<Void>, Some adderCode, [], None, K [| |])  :> MethodInfo
             let remover = ProvidedMethod(false, "remove_" + eventName, pattrs, [| ProvidedParameter(false, "handler", eventHandlerType, isOut=Some false, optionalValue=None) |], typeof<Void>, Some removerCode, [], None, K [| |])  :> MethodInfo
             ProvidedEvent(false, eventName, EventAttributes.None, eventHandlerType, isStatic, K adder, K remover, K [| |])
@@ -1526,7 +1527,7 @@ namespace ProviderImplementation.ProvidedTypes
                 // This is performance critical for large spaces of provided methods and properties
                 // Save a table of the methods grouped by name
                 let table = 
-                    save (bindingFlags ||| BindingFlags.InvokeMethod ||| BindingFlags.DeclaredOnly) (fun () -> 
+                    save (bindingFlags ||| BindingFlags.InvokeMethod) (fun () -> 
                         let methods = this.GetMethods bindingFlags
                         methods |> Seq.groupBy (fun m -> m.Name) |> Seq.map (fun (k,v) -> k, Seq.toArray v) |> dict)
                 
@@ -1543,7 +1544,7 @@ namespace ProviderImplementation.ProvidedTypes
         override __.GetPropertyImpl(name, bindingFlags, _binder, _returnType, _types, _modifiers) =
             (//save ("prop1", bindingFlags, Some name) (fun () -> 
                 let table = 
-                    save (bindingFlags ||| BindingFlags.GetProperty ||| BindingFlags.DeclaredOnly) (fun () -> 
+                    save (bindingFlags ||| BindingFlags.GetProperty) (fun () -> 
                         let methods = this.GetProperties bindingFlags
                         methods |> Seq.groupBy (fun m -> m.Name) |> Seq.map (fun (k,v) -> k, Seq.toArray v) |> dict)
                 let xs = if table.ContainsKey name then table.[name] else [| |]
