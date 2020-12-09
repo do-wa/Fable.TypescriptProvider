@@ -3,6 +3,10 @@ module rec ProviderDsl
 open System.Reflection
 open FSharp.Quotations
 open ProviderImplementation.ProvidedTypes
+open System
+open Microsoft.FSharp.Reflection
+open Microsoft.FSharp.Quotations
+open Microsoft.FSharp.Quotations.Patterns
 
 open System
 open Microsoft.FSharp.Reflection
@@ -86,19 +90,85 @@ let makeImportDefaultMethod(name: string, params': ProvidedParameter list, retur
         isStatic = isStatic
     )
 
+
+let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
+                                   elif expr.Type.IsAssignableFrom(typeof<string>) then <@ box(%%expr:string) @>
+                                   else failwith "Type not supported yet"
+
+// this was previously completely inline                                   
+let inline exprAsFnArgs (args: Expr list) = 
+                    args
+                    |> List.map(fun arg -> if arg.Type.IsAssignableFrom(typeof<float>) then <@ box(%%arg:float) @>
+                                           elif arg.Type.IsAssignableFrom(typeof<string>) then <@ box(%%arg:string) @>
+                                           else failwith "Type not supported yet" )
+                    |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
+
+let inline invokeCode1Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) |])@@>
+let inline invokeCode2Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) ; %(boxTyped args.[1]) |])@@>
+let inline invokeCode3Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) ; %(boxTyped args.[1]) ; %(boxTyped args.[2])  |])@@>
+
+let invoke = [invokeCode1Params; invokeCode2Params; invokeCode3Params]
+
 let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
     ProvidedMethod(
         name, 
         params',
         returnType,
         false,
-        (fun args -> 
-            <@@ 
-                let x : Fable.Core.JsInterop.JsFunc = Fable.Core.JsInterop.importAll path 
-                x.Invoke("Test",10.0,"Test")
-            @@>),
+        invoke.[params'.Length-1](path),
         isStatic = isStatic
     )
+
+
+//let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
+//    ProvidedMethod(
+//        name, 
+//        params',
+//        returnType,
+//        false,
+//        (fun args -> 
+//                    let fnArgs = exprAsFnArgs args
+//                    <@@     
+                        
+//                        let data = Fable.Core.JsInterop.toPlainJsObj  (%fnArgs |> List.toArray)
+                            
+//                        //let args = (%arg)()
+//                        //let inv : Fable.Core.JsInterop.JsFunc = (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc)
+//                        //inv.Invoke(test)
+//                        (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(data)
+//                     @@>
+//                    //let x = (%%args:obj[]).[i]
+//                    //let f = 
+//                    //     (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke((%%args.[0]:obj)) 
+
+                     
+                 
+//                    //<@@ 
+//                    //    let x = <@@ [for arg in args do (%%arg)] @@>
+//                    //    printfn "%O" x 
+//                    // @@>
+//                    //let fn = <@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc) @>
+//                    //let y = <@ (%fn : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do  if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float) ]) @>
+//                    //<@@ y @@>
+//                    //   [ 1 .. 4 ] |> List.fold (fun st n -> <@ n + %st @>) <@ 0 @>
+//                    //let args = args 
+//                    //           |> List.map(fun arg -> 
+//                    //                if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg: string)
+//                    //                elif arg.Type.IsAssignableFrom(typeof<float>) then box (%%arg: float)
+//                    //                else box (%%arg:obj))
+//                    //let y = args |> List.fold (fun f n -> <@ n::%f @>) <@ [] @>
+//                    //<@@
+//                    //let x = [for arg in args do  if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float) ] 
+//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke() @@>
+//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float)])
+//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float)])
+               
+
+//                //x.Invoke("Test",10.0,"Test")
+//           // @@>
+//          ),
+//        isStatic = isStatic
+//    )
 
 let makeImportAllConstructor(path: string) = 
      ProvidedConstructor([], (fun args -> <@@ Fable.Core.JsInterop.importAll path @@>))
