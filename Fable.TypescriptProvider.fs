@@ -1,14 +1,4 @@
-﻿namespace Fable.Core
-
-open ts2fable
-
-open FSharp.Compiler.Text
-open System.Diagnostics
-
-type EmitAttribute(macro: string) =
-    inherit System.Attribute()
-
-namespace Fable
+﻿namespace Fable
 
 module TypescriptProvider =
     open System
@@ -226,14 +216,108 @@ module TypescriptProvider =
         moduleDeclaration.AddMembers interfaces
         moduleDeclaration.AddMembers variables
         moduleDeclaration
-         
+    // stringvaraint         
+    //let extractTs2Fable scriptName copyToPath = 
+    //    try 
+    //        let assembly = System.Reflection.Assembly.GetExecutingAssembly();
+    //        let resourceNames = assembly.GetManifestResourceNames()
+    //        if (isNull resourceNames) then failwith "TypeProvider Resources could not be loaded...this is a bug"
+    //        let resourceName  = resourceNames |> Array.tryFind(fun n -> n.EndsWith(scriptName))
+    //        match resourceName with 
+    //        | None -> failwith "Typeprovider ts2fable Resource could not be found.. this is a bug"
+    //        | Some resourceName -> 
+    //            use stream = assembly.GetManifestResourceStream(resourceName)
+    //            use reader = new StreamReader(stream)
+    //            let fc = reader.ReadToEnd()
+    //            File.WriteAllText(copyToPath, fc)
+    //    with 
+    //    | ex -> failwith (sprintf "extractTs2Fable failed. %s" ex.Message)
+    
+    let extractTs2Fable scriptName copyToPath = 
+        try 
+            let assembly = System.Reflection.Assembly.GetExecutingAssembly();
+            let resourceNames = assembly.GetManifestResourceNames()
+            if (isNull resourceNames) then failwith "TypeProvider Resources could not be loaded...this is a bug"
+            let resourceName  = resourceNames |> Array.tryFind(fun n -> n.EndsWith(scriptName))
+            match resourceName with 
+            | None -> failwith "Typeprovider ts2fable Resource could not be found.. this is a bug"
+            | Some resourceName -> 
+                use stream = assembly.GetManifestResourceStream(resourceName)
+                use f = File.OpenWrite(copyToPath)
+                stream.CopyTo(f)
+                f.Close()
+        with 
+        | ex -> failwith (sprintf "extractTs2Fable failed. %s" ex.Message)
+        
+
+    let runTs2fableExe scriptPath scriptName (dtsFile: string) out = 
+        try
+            let p = new Process();
+            let psi = new ProcessStartInfo();
+            psi.FileName <- scriptName;
+            psi.WorkingDirectory <- scriptPath
+            psi.Arguments <- sprintf "\"%s\" %s" dtsFile out
+            psi.WindowStyle <- ProcessWindowStyle.Hidden
+            p.StartInfo <- psi
+            p.Start() |> ignore
+            p.WaitForExit(10000)
+        with 
+        | ex -> failwith (sprintf "running ts2fable failed. %s" ex.Message)
+
+    let loadMainDtsFile resolutionFolder moduleName = 
+        // find package.json
+        let ts2FableScriptName =
+            if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.Windows) then "ts2fable-win.exe"
+            elif System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.Linux) then "ts2fable-linux"
+            elif System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.OSX) then "ts2fable-macos"
+            else failwith "Your OS is to esoteric for this typeprovider"
+        let ts2FableFolderPath = Path.GetTempPath()
+        let ts2FableFullPath = Path.Combine(ts2FableFolderPath, "./"+ts2FableScriptName)
+        if File.Exists(ts2FableFullPath) = false then do extractTs2Fable ts2FableScriptName ts2FableFullPath
+        
+        let rec findPackageJson (dir: DirectoryInfo) moduleName =
+            try 
+                let packagePath = Path.Combine(dir.FullName, sprintf "./node_modules/%s/" moduleName)
+                let packageJsonFile = FileInfo(Path.Combine(packagePath, "./package.json"))
+                if (isNull packageJsonFile) = false && packageJsonFile.Exists then Ok(packageJsonFile.FullName, packagePath)
+                else findPackageJson dir.Parent moduleName
+            with 
+            | ex -> Error(sprintf "ExMessage: %s. ModuleName: %s. Dir: %s" ex.Message moduleName dir.FullName)
+
+        //let packagePath = sprintf "./node_modules/%s/package.json" moduleName
+        //let modulePackagePath = Path.Combine(currentDir, packagePath)
+
+        //let staticcheck = Path.Combine(resolutionFolder, sprintf "../node_modules/%s/package.json" moduleName)
+
+        //failwith (File.ReadAllText(staticcheck))
+
+
+        let packageJsonFile = findPackageJson (DirectoryInfo(resolutionFolder)) moduleName
+        match packageJsonFile with 
+        | Error msg -> failwith (sprintf "Could not locate package.json. %s" msg)
+        | Ok(packageJsonFile, packagePath) -> 
+            let packageJsonContent = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(packageJsonFile))
+            let typingsInfo = [packageJsonContent.SelectToken("$.types"); packageJsonContent.SelectToken("$.typings")]
+
+            let dtsMainFilePath = typingsInfo |> List.tryPick(fun ti -> if (isNull ti) = false then Some(ti.ToString()) else None)
+            match dtsMainFilePath with 
+            | None -> failwith "Could not find index dts file"
+            | Some dtsMainPath -> 
+                let dtsPath = Path.Combine(packagePath, dtsMainPath)
+                let outPath = Path.Combine(Path.GetTempPath(), (sprintf "%s.fs" moduleName);)
+                match runTs2fableExe ts2FableFolderPath ts2FableScriptName dtsPath outPath with 
+                | false -> failwith "Could not create typings from package"
+                | true -> 
+                    let fableTypesJson = File.ReadAllText((sprintf "%s.json" outPath))
+                    Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> fableTypesJson
+
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =
         inherit TypeProviderForNamespaces (config)
         let asm = System.Reflection.Assembly.GetExecutingAssembly()
         let ns = "Fable.TypescriptProvider"
-
+        
         let staticParams = [ProvidedStaticParameter("module",typeof<string>)]
         // TODO rename generator (borrowed from JsonProvider). 
         // Add Options to add additional "render" method into type for direct react component import (main motivation for this project)
@@ -244,18 +328,17 @@ module TypescriptProvider =
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
                     | [| :? string as arg|] ->
-                        // TODO: import d.ts file from filesystem, call ts2fable 
-                        match Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> sample with
+                        match loadMainDtsFile config.ResolutionFolder arg with
                         | Error err -> failwith err
                         | Ok tsType -> 
                             let typeMap = Collections.Generic.Dictionary<string list, CachedTypeInformation>()
                             let files = tsType.Files
 
-                            let indexFile = files |> List.pick(fun f -> match f.Kind with | FsFileKind.Index -> Some f | _ -> None) 
-                            let otherFiles = files |> List.choose(fun f -> match f.Kind with | FsFileKind.Extra _ -> Some f | _ -> None) // TODO: support other files
+                            let indexFile = files |> List.pick(fun f -> match f.Kind with | FsFileKind.Index -> Some f | _ -> None) // TODO: more than one?
+                            let otherFiles = files |> List.choose(fun f -> match f.Kind with | FsFileKind.Extra _ -> Some f | _ -> None)
 
                             let otherModules = otherFiles|> List.collect(fun m -> m.Modules |> List.map (toModule typeMap))
-                            let indexModules = indexFile.Modules |> List.map (toModule typeMap) // TODO : support multiple modules
+                            let indexModules = indexFile.Modules |> List.map (toModule typeMap) 
 
                             let allModules = indexModules @ otherModules
 

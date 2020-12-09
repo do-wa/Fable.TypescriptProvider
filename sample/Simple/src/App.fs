@@ -3,7 +3,6 @@ module App
 open Browser.Dom
 open Fable.Core.JsInterop
 open Fable.Core
-
 type LeftPadModule = Fable.TypescriptProvider.Import<"left-pad">
 let leftPad = LeftPadModule.LeftPad.leftPad
 

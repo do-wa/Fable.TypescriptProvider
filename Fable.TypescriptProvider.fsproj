@@ -6,11 +6,18 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="Script1.fsx" />
+    <None Include="ts2fable-macos" />
+    <None Include="ts2fable-linux" />
+    <EmbeddedResource Include="ts2fable-win.exe" />
+    <EmbeddedResource Include="ts2fable.js">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </EmbeddedResource>
     <Compile Include="ProvidedTypes.fs" />
     <Compile Include="ProviderDsl.fs" />
     <Compile Include="Fable.TypescriptProvider.fs" />
   </ItemGroup>
+
+  <ItemGroup />
 
   <ItemGroup>
     <PackageReference Include="Chiron" Version="6.3.1" />
@@ -24,6 +31,12 @@
 
   <ItemGroup>
     <ProjectReference Include="ts2fable-master\src\ts2fable.fsproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <EmbeddedResource Update="Resource.resx">
+      <Generator>ResXFileCodeGenerator</Generator>
+    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
