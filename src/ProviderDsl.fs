@@ -108,6 +108,7 @@ let inline invokeCode2Params (path: string) = fun (args: Expr list) -> <@@  (Fab
 let inline invokeCode3Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) ; %(boxTyped args.[1]) ; %(boxTyped args.[2])  |])@@>
 
 let invoke = [invokeCode1Params; invokeCode2Params; invokeCode3Params]
+let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
 
 let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
     ProvidedMethod(
@@ -115,7 +116,7 @@ let makeImportAllMethod(name: string, params': ProvidedParameter list, returnTyp
         params',
         returnType,
         false,
-        invoke.[params'.Length-1](path),
+        invokeFableFn(path),
         isStatic = isStatic
     )
 
