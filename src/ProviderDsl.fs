@@ -98,6 +98,7 @@ let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) 
 // this was previously completely inline                                   
 let inline exprAsFnArgs (args: Expr list) = 
                     args
+                    |> List.rev
                     |> List.map(fun arg -> boxTyped arg )
                     |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
 
