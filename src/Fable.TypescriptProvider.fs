@@ -233,30 +233,14 @@ module TypescriptProvider =
     //    with 
     //    | ex -> failwith (sprintf "extractTs2Fable failed. %s" ex.Message)
     
-    let extractTs2Fable scriptName copyToPath = 
+    // TODO: Support multi plattform, there probably is a good .net package for this
+    let runTs2FableModule scriptPath scriptName (dtsFile: string) out = 
         try 
-            let assembly = System.Reflection.Assembly.GetExecutingAssembly();
-            let resourceNames = assembly.GetManifestResourceNames()
-            if (isNull resourceNames) then failwith "TypeProvider Resources could not be loaded...this is a bug"
-            let resourceName  = resourceNames |> Array.tryFind(fun n -> n.EndsWith(scriptName))
-            match resourceName with 
-            | None -> failwith "Typeprovider ts2fable Resource could not be found.. this is a bug"
-            | Some resourceName -> 
-                use stream = assembly.GetManifestResourceStream(resourceName)
-                use f = File.OpenWrite(copyToPath)
-                stream.CopyTo(f)
-                f.Close()
-        with 
-        | ex -> failwith (sprintf "extractTs2Fable failed. %s" ex.Message)
-        
-
-    let runTs2fableExe scriptPath scriptName (dtsFile: string) out = 
-        try
-            let p = new Process();
-            let psi = new ProcessStartInfo();
-            psi.FileName <- scriptName;
+            let p = new Process()
+            let psi = new ProcessStartInfo()
+            psi.FileName <- "CMD.exe"
             psi.WorkingDirectory <- scriptPath
-            psi.Arguments <- sprintf "\"%s\" %s" dtsFile out
+            psi.Arguments <- sprintf "/C node %s \"%s\" \"%s\"" scriptName dtsFile out
             psi.WindowStyle <- ProcessWindowStyle.Hidden
             p.StartInfo <- psi
             p.Start() |> ignore
@@ -266,14 +250,9 @@ module TypescriptProvider =
 
     let loadMainDtsFile resolutionFolder moduleName = 
         // find package.json
-        let ts2FableScriptName =
-            if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.Windows) then "ts2fable-win.exe"
-            elif System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.Linux) then "ts2fable-linux"
-            elif System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.OSX) then "ts2fable-macos"
-            else failwith "Your OS is to esoteric for this typeprovider"
-        let ts2FableFolderPath = Path.GetTempPath()
-        let ts2FableFullPath = Path.Combine(ts2FableFolderPath, "./"+ts2FableScriptName)
-        if File.Exists(ts2FableFullPath) = false then do extractTs2Fable ts2FableScriptName ts2FableFullPath
+        let ts2FableScriptName = "ts2fable.js"
+        // this is of course temporary
+        let ts2FableFolderPath = "C:\\Users\\dominik\\Projects\\Fable.JsonProvider-master\\Fable.JsonProvider-master\\src\\ts2fable-master\\build\\" //"Path.GetTempPath()
         
         let rec findPackageJson (dir: DirectoryInfo) moduleName =
             try 
@@ -290,19 +269,21 @@ module TypescriptProvider =
         | Ok(packageJsonFile, packagePath) -> 
             let packageJsonContent = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(packageJsonFile))
             let typingsInfo = [packageJsonContent.SelectToken("$.types"); packageJsonContent.SelectToken("$.typings")]
-
+            let versionInfo = packageJsonContent.SelectToken("$.version").ToString()
             let dtsMainFilePath = typingsInfo |> List.tryPick(fun ti -> if (isNull ti) = false then Some(ti.ToString()) else None)
             match dtsMainFilePath with 
             | None -> failwith "Could not find index dts file"
             | Some dtsMainPath -> 
                 let dtsPath = Path.Combine(packagePath, dtsMainPath)
-                let outPath = Path.Combine(Path.GetTempPath(), (sprintf "%s.fs" moduleName);)
-                match runTs2fableExe ts2FableFolderPath ts2FableScriptName dtsPath outPath with 
-                | false -> failwith "Could not create typings from package"
-                | true -> 
-                    let fableTypesJson = File.ReadAllText((sprintf "%s.json" outPath))
-                    Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> fableTypesJson
-
+                let outPath = Path.Combine(Path.GetTempPath(), (sprintf "%s.%s.fs" moduleName versionInfo))
+                let genFilePath = sprintf "%s.json" outPath
+                // check if file already exists if not run module
+                if File.Exists(genFilePath) || (runTs2FableModule ts2FableFolderPath ts2FableScriptName dtsPath outPath)
+                then 
+                    let fableTypesJson = File.ReadAllText(genFilePath)
+                    Decode.Auto.fromString<ts2fable.Syntax.FsFileOut>fableTypesJson
+                else failwith "Could not load ts2fable Typing Information"
+                
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =

@@ -6,9 +6,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <None Include="ts2fable-macos" />
-    <None Include="ts2fable-linux" />
-    <EmbeddedResource Include="ts2fable-win.exe" />
     <Compile Include="ProvidedTypes.fs" />
     <Compile Include="ProviderDsl.fs" />
     <Compile Include="Fable.TypescriptProvider.fs" />
@@ -28,12 +25,6 @@
 
   <ItemGroup>
     <ProjectReference Include="ts2fable-master\src\ts2fable.fsproj" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <EmbeddedResource Update="Resource.resx">
-      <Generator>ResXFileCodeGenerator</Generator>
-    </EmbeddedResource>
   </ItemGroup>
 
 </Project>
