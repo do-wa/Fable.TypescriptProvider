@@ -98,16 +98,9 @@ let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) 
 // this was previously completely inline                                   
 let inline exprAsFnArgs (args: Expr list) = 
                     args
-                    |> List.map(fun arg -> if arg.Type.IsAssignableFrom(typeof<float>) then <@ box(%%arg:float) @>
-                                           elif arg.Type.IsAssignableFrom(typeof<string>) then <@ box(%%arg:string) @>
-                                           else failwith "Type not supported yet" )
+                    |> List.map(fun arg -> boxTyped arg )
                     |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
 
-let inline invokeCode1Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) |])@@>
-let inline invokeCode2Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) ; %(boxTyped args.[1]) |])@@>
-let inline invokeCode3Params (path: string) = fun (args: Expr list) -> <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([| %(boxTyped args.[0]) ; %(boxTyped args.[1]) ; %(boxTyped args.[2])  |])@@>
-
-let invoke = [invokeCode1Params; invokeCode2Params; invokeCode3Params]
 let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
 
 let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
