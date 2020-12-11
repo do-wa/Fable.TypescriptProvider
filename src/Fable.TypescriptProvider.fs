@@ -262,7 +262,7 @@ module TypescriptProvider =
             p.Start() |> ignore
             p.WaitForExit(10000)
         with 
-        | ex -> failwith (sprintf "running ts2fable failed. %s" ex.Message)
+        | ex -> failwith (sprintf "running ts2fable failed.Looking for %s at %s. Exception: %s" scriptName scriptPath ex.Message)
 
     let loadMainDtsFile resolutionFolder moduleName = 
         // find package.json
@@ -283,14 +283,6 @@ module TypescriptProvider =
                 else findPackageJson dir.Parent moduleName
             with 
             | ex -> Error(sprintf "ExMessage: %s. ModuleName: %s. Dir: %s" ex.Message moduleName dir.FullName)
-
-        //let packagePath = sprintf "./node_modules/%s/package.json" moduleName
-        //let modulePackagePath = Path.Combine(currentDir, packagePath)
-
-        //let staticcheck = Path.Combine(resolutionFolder, sprintf "../node_modules/%s/package.json" moduleName)
-
-        //failwith (File.ReadAllText(staticcheck))
-
 
         let packageJsonFile = findPackageJson (DirectoryInfo(resolutionFolder)) moduleName
         match packageJsonFile with 

@@ -9,9 +9,6 @@
     <None Include="ts2fable-macos" />
     <None Include="ts2fable-linux" />
     <EmbeddedResource Include="ts2fable-win.exe" />
-    <EmbeddedResource Include="ts2fable.js">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </EmbeddedResource>
     <Compile Include="ProvidedTypes.fs" />
     <Compile Include="ProviderDsl.fs" />
     <Compile Include="Fable.TypescriptProvider.fs" />
