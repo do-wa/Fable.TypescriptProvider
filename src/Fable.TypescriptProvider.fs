@@ -42,8 +42,9 @@ module TypescriptProvider =
             types.[name].BaseType
         | true, type' -> type'.BaseType
     let getOrCreateType = getAndCacheType false
-    let getProvidedType  (types: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (name: string list) = 
+    let rec getProvidedType  (types: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (name: string list) = 
         match types.TryGetValue name with
+        | false, _ when name.Length > 1 -> getProvidedType types name.Tail
         | false, _ -> None
         | true, type' -> Some type'
     let updateProvidedType (types: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (name: string list) (method: ProvidedMethod option) (prop: ProvidedProperty option) =
@@ -188,7 +189,7 @@ module TypescriptProvider =
                             |> List.map(fun m -> methodImporter(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, export.Path) :> Reflection.MemberInfo)
                         let properties = 
                             t.Properties
-                            |> List.map(fun p -> propImporter(p.Name, t.BaseType, export.Path) :> Reflection.MemberInfo)
+                            |> List.map(fun p -> propImporter(p.Name, p.PropertyType, export.Path) :> Reflection.MemberInfo)
                         Some (methods @ properties)
                         //match var.Export with 
                         //| Some ex -> 
