@@ -129,21 +129,45 @@ module TypescriptProvider =
 
         | _ -> [ProviderDsl.makeType(System.Guid.NewGuid().ToString().Replace("-",""), true)] // TODO: unions, tuples, generics... what else?
     
+    let debugPrintDict (dict: System.Collections.Generic.Dictionary<string list, CachedTypeInformation>) =
+        let lines = seq {
+            for kvp in dict do
+                yield sprintf "%s: %s" (kvp.Key |> String.concat ".") (kvp.Value.BaseType.Name)
+        }
+        lines |> String.concat "\n"
 
-    let toModule (typeMap: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (module': FsModule) =
+    let rec toModule (typeMap: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (module': FsModule) =
+        let nestedModules = 
+                   module'.Types 
+                   |> List.tryPick(function | FsType.Module m -> Some m | _ -> None)
+
         let moduleDeclaration = 
-            module'.Types 
-            |> List.pick(function | FsType.Module m -> Some m.Name | _ -> None)
-            |> (fun name -> ProviderDsl.makeType(name, false))
+            match nestedModules 
+                  |> Option.bind (fun fsm -> Some (getAndCacheType false typeMap [fsm.Name] (fun _ -> ProviderDsl.makeType(fsm.Name, false)))) with 
+            | Some md -> md
+            | None -> // bind to parent 
+                      match getProvidedType typeMap [(module'.Name)] with 
+                      | Some md -> md.BaseType
+                      | None -> failwith "We have no module for binding"
+
+        let innerModuleTypes = 
+            match nestedModules with 
+            | None -> None
+            | Some fsm -> fsm.Types
+                          |> List.rev
+                          |> List.collect (toType typeMap (moduleDeclaration.Name) (Some moduleDeclaration))
+                          |> Some
 
         let interfaces =
             module'.Types 
             |> List.choose(function | FsType.Module _ | FsType.Variable _ -> None | other -> Some other)
-            |> List.collect (toType typeMap moduleDeclaration.Name (Some moduleDeclaration))
+            |> List.rev
+            |> List.collect (toType typeMap (moduleDeclaration.Name) (Some moduleDeclaration))
 
         let variables = 
             module'.Types
             |> List.choose(function | FsType.Variable v -> Some v | _ -> None)
+            |> List.rev
             |> List.choose(fun var -> 
                 
                 //let prop = ProviderDsl.makeProperty(var.Name)
@@ -152,35 +176,47 @@ module TypescriptProvider =
                 | ts2fable.Syntax.FsType.Mapped mapped -> 
                     let typeName = mapped.Name.Split('.') |> Array.toList
                     match getProvidedType typeMap typeName with
-                    | None -> failwith "Type should exist"
+                    | None -> failwith (sprintf "Type %s should exist. Current Type Map: %s" (typeName |> String.concat ".") (debugPrintDict typeMap))
                     | Some t -> 
-                        
+                        let (methodImporter, propImporter, export) = 
+                            match var.Export with 
+                            | Some ex when ex.Selector = "*" -> ProviderDsl.makeImportAllMethod,ProviderDsl.makeImportAllProperty, ex
+                            | Some ex -> failwith (sprintf "Import Method '%s' not yet supported" ex.Selector)
+                            | _ -> failwith "Module Export expected"
+                        let methods = 
+                            t.Methods 
+                            |> List.map(fun m -> methodImporter(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, export.Path) :> Reflection.MemberInfo)
+                        let properties = 
+                            t.Properties
+                            |> List.map(fun p -> propImporter(p.Name, t.BaseType, export.Path) :> Reflection.MemberInfo)
+                        Some (methods @ properties)
                         //match var.Export with 
                         //| Some ex -> 
                         //    match ex.Selector with 
                         //    | "*" -> Some([ProviderDsl.makeImportAllProperty(var.Name, t.BaseType, ex.Path)])
                         //    | _ -> failwith "Module Export not supported yet"
                         //| None -> failwith "Variable without export not supported yet"
-                        let method = t.Methods |> List.tryFind(fun m -> m.Name = var.Name)     
-                        match method with 
-                        | None -> 
-                            let props = t.Properties |> List.tryFind(fun m -> m.Name = var.Name)
-                            match props with 
-                            | None -> failwith "Could not find matching module variable declaration"
-                            | Some p -> 
-                                let property = ProviderDsl.makeProperty(p.Name, p.PropertyType, false) :> System.Reflection.MemberInfo
-                                Some [property]
-                        | Some m -> 
-                                match var.Export with 
-                                | None -> None
-                                | Some ex -> 
-                                    match ex.Selector with 
-                                    | "*" -> let method = ProviderDsl.makeImportAllMethod(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, ex.Path) :> System.Reflection.MemberInfo
-                                             Some([
-                                                    //ProviderDsl.makeImportAllProperty(var.Name, t.BaseType, ex.Path)
-                                                    method
-                                                 ])
-                                    | _ -> failwith "Not supported yet"
+
+                        //let method = t.Methods |> List.tryFind(fun m -> m.Name = var.Name)     
+                        //match method with 
+                        //| None -> 
+                        //    let props = t.Properties |> List.tryFind(fun m -> m.Name = var.Name)
+                        //    match props with 
+                        //    | None ->  failwith (sprintf "Could not find Property %s in Type %s variable declaration. This should be part of . Current Type Map: %s" (var.Name) (t.BaseType.Name) (debugPrintDict typeMap))
+                        //    | Some p -> 
+                        //        let property = ProviderDsl.makeProperty(p.Name, p.PropertyType, false) :> System.Reflection.MemberInfo
+                        //        Some [property]
+                        //| Some m -> 
+                        //        match var.Export with 
+                        //        | None -> None
+                        //        | Some ex -> 
+                        //            match ex.Selector with 
+                        //            | "*" -> let method = ProviderDsl.makeImportAllMethod(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, ex.Path) :> System.Reflection.MemberInfo
+                        //                     Some([
+                        //                            //ProviderDsl.makeImportAllProperty(var.Name, t.BaseType, ex.Path)
+                        //                            method
+                        //                         ])
+                        //            | _ -> failwith "Not supported yet"
                     //match getProvidedType typeMap typeName with
                     //| None -> failwith "Type should exist"
                     //| Some t -> 
@@ -212,7 +248,8 @@ module TypescriptProvider =
                 | _ -> failwith "Not supported.. yet"
             )
             |> List.collect id
-
+        //moduleDeclaration.AddMembers nestedTypes
+        if innerModuleTypes <> None then moduleDeclaration.AddMembers(innerModuleTypes.Value)
         moduleDeclaration.AddMembers interfaces
         moduleDeclaration.AddMembers variables
         moduleDeclaration
@@ -233,7 +270,7 @@ module TypescriptProvider =
     //    with 
     //    | ex -> failwith (sprintf "extractTs2Fable failed. %s" ex.Message)
     
-    // TODO: Support multi plattform, there probably is a good .net package for this
+    // TODO: Support multi plattform, theres probably is a good .net package for this
     let runTs2FableModule scriptPath scriptName (dtsFile: string) out = 
         try 
             let p = new Process()
@@ -267,12 +304,19 @@ module TypescriptProvider =
         match packageJsonFile with 
         | Error msg -> failwith (sprintf "Could not locate package.json. %s" msg)
         | Ok(packageJsonFile, packagePath) -> 
+            // this is the happy path. Typings should be declared in the package.json <-- DONE
+            // fallback 1: Find any index.dts in the root folder of the project       <-- DONE
+            // otherwise the user should link/path to the right file                  <-- TODO
             let packageJsonContent = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(packageJsonFile))
             let typingsInfo = [packageJsonContent.SelectToken("$.types"); packageJsonContent.SelectToken("$.typings")]
             let versionInfo = packageJsonContent.SelectToken("$.version").ToString()
-            let dtsMainFilePath = typingsInfo |> List.tryPick(fun ti -> if (isNull ti) = false then Some(ti.ToString()) else None)
+            let dtsMainFilePath = 
+                match typingsInfo |> List.tryPick(fun ti -> if (isNull ti) = false then Some(ti.ToString()) else None) with
+                | Some file -> Some file
+                | None when File.Exists(Path.Combine(packagePath,"./index.d.ts")) -> Some(Path.Combine(packagePath,"./index.d.ts"))
+                | None -> None
+                               
             match dtsMainFilePath with 
-            | None -> failwith "Could not find index dts file"
             | Some dtsMainPath -> 
                 let dtsPath = Path.Combine(packagePath, dtsMainPath)
                 let outPath = Path.Combine(Path.GetTempPath(), (sprintf "%s.%s.fs" moduleName versionInfo))
@@ -283,6 +327,7 @@ module TypescriptProvider =
                     let fableTypesJson = File.ReadAllText(genFilePath)
                     Decode.Auto.fromString<ts2fable.Syntax.FsFileOut>fableTypesJson
                 else failwith "Could not load ts2fable Typing Information"
+            | None -> failwith "Could not find index dts file"
                 
 
     [<TypeProvider>]
@@ -307,8 +352,8 @@ module TypescriptProvider =
                             let typeMap = Collections.Generic.Dictionary<string list, CachedTypeInformation>()
                             let files = tsType.Files
 
-                            let indexFile = files |> List.pick(fun f -> match f.Kind with | FsFileKind.Index -> Some f | _ -> None) // TODO: more than one?
                             let otherFiles = files |> List.choose(fun f -> match f.Kind with | FsFileKind.Extra _ -> Some f | _ -> None)
+                            let indexFile = files |> List.pick(fun f -> match f.Kind with | FsFileKind.Index -> Some f | _ -> None) // TODO: more than one?
 
                             let otherModules = otherFiles|> List.collect(fun m -> m.Modules |> List.map (toModule typeMap))
                             let indexModules = indexFile.Modules |> List.map (toModule typeMap) 
