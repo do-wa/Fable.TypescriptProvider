@@ -6,7 +6,7 @@ type LeftPad = Fable.TypescriptProvider.Import<"left-pad">
 type AwesomeButtom = Fable.TypescriptProvider.Import<"react-awesome-button">
 
 
-let x = AwesomeButtom.React_awesome_button.AwesomeButton.Create() 
+let x = AwesomeButtom.React_awesome_button.AwesomeButton.Create
 let pad = LeftPad.LeftPad.leftPad
 
 [<ReactComponent>]

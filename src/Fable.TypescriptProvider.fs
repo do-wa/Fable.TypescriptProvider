@@ -122,8 +122,14 @@ module TypescriptProvider =
                     ) 
                     |> List.map(fun (name, type') -> ProvidedParameter(name, mapErasedType type'))
                 
-                
-                let method = ProviderDsl.makeNoInvokeMethod(Option.defaultValue "Invoke" func.Name, params', mapErasedType ErasedType.String, false) // TODO: support return type
+                let (_, returnType) = match func.ReturnType with 
+                                      | ts2fable.Syntax.FsType.Generic gen -> 
+                                        gen.
+                                      | ts2fable.Syntax.FsType.Mapped mapped -> 
+                                        let mappedType = mapType types [moduleName;mapped.Name] false
+                                        "", mappedType
+                                      | _ ->  "", ErasedType.String // TODO: support other types
+                let method = ProviderDsl.makeNoInvokeMethod(Option.defaultValue "Invoke" func.Name, params', mapErasedType returnType, false) // TODO: support return type
                 updateProvidedType types [moduleName; parentType.Name] (Some method) None 
                 parentType.AddMember(method)
                 [parentType]

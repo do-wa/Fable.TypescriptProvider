@@ -8,6 +8,7 @@
   <ItemGroup>
     <Compile Include="ProvidedTypes.fs" />
     <Compile Include="ProviderDsl.fs" />
+    <Compile Include="Transform.fs" />
     <Compile Include="Fable.TypescriptProvider.fs" />
   </ItemGroup>
 
