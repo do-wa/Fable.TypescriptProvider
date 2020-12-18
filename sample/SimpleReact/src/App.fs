@@ -1,13 +1,24 @@
 module App
 
 open Feliz
+open Fable
+open Fable.Core
+open Fable.Core.JsInterop
+open Fable.Core.JsInterop
+
 
 type LeftPad = Fable.TypescriptProvider.Import<"left-pad">
-type AwesomeButtom = Fable.TypescriptProvider.Import<"react-awesome-button">
 
+let x = createObj (LeftPad.TestType.Props("Test"))
 
-let x = AwesomeButtom.React_awesome_button.AwesomeButton.Create
-let pad = LeftPad.LeftPad.leftPad
+//type AwesomeButtom = Fable.TypescriptProvider.Import<"react-awesome-button">
+
+//let y: AwesomeButtom.AwesomeButtonProps = !!{| action = "" |} // geht nicht.. keine Type fehler
+
+//let btn props = AwesomeButtom.AwesomeButton(props)
+//let pad = LeftPad.leftPad
+
+//btn z |> ignore
 
 [<ReactComponent>]
 let Counter() =
