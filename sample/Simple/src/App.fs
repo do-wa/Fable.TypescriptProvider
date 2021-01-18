@@ -3,11 +3,20 @@ module App
 open Browser.Dom
 open Fable.Core.JsInterop
 open Fable.Core
-type LeftPadModule = Fable.TypescriptProvider.Import<"left-pad">
-let leftPad = LeftPadModule.LeftPad.leftPad
 
-let padded = leftPad("Text", 50.0, "A")
-printfn "%s" padded
+
+type LeftPad = Fable.TypescriptTypeProvider.Import<"default","left-pad">
+
+let leftPad(test : LeftPad.leftPad) : LeftPad.IModule = importDefault "left-pad"
+
+leftPad({ prop1 = ""}) |> ignore
+
+//let leftPad = LeftPadModule.leftPad
+
+//leftPad() |> ignore
+
+//let padded = leftPad("Text", 50.0, "A")
+//printfn "%s" padded
 
 let mutable count = 0
 
@@ -16,4 +25,4 @@ let myButton = document.querySelector(".my-button") :?> Browser.Types.HTMLButton
 
 myButton.onclick <- fun _ ->
     count <- count + 1  
-    myButton.innerText <- sprintf "Count: %i Padded Text: %s time(s)" count (leftPad("Test",float(count),"Juhu!"))
+   // myButton.innerText <- sprintf "Count: %i Padded Text: %s time(s)" count (leftPad("Test",float(count),"Juhu!"))

@@ -80,13 +80,133 @@ module TypescriptProvider =
                     Decode.Auto.fromString<ts2fable.Syntax.FsFileOut>fableTypesJson
                 else failwith "Could not load ts2fable Typing Information"
             | None -> failwith "Could not find index dts file"
+    
+    
+    
+    //let rec private mapToProvidedType (parentType: ProvidedTypeDefinition) (provideTo: string * Type -> unit) (mappedType: MappedType)  =
+    //    match mappedType with
+    //    | Primitive p ->
+    //        match p.TypeName,p.IsOptional with 
+    //        | "string", true -> 
+    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<string>))
+    //        | "string", false -> 
+    //            provideTo(p.Name, typeof<string>)
+    //        | "int", true -> 
+    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<int>))
+    //        | "int", false -> 
+    //            provideTo(p.Name, typeof<int>)
+    //        | "float", true -> 
+    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<float>))
+    //        | "float", false -> 
+    //            provideTo(p.Name, typeof<float>)
+    //        | "bool", true -> 
+    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<bool>))
+    //        | "bool", false ->
+    //           provideTo(p.Name, typeof<bool>)
+    //        | "unit", _ ->
+    //           provideTo(p.Name, typeof<unit>)
+    //        | _ , _ -> 
+    //           provideTo(Guid.NewGuid().ToString().Replace("-",""), typeof<string>)
+    //        parentType
+    //    | Function f ->
+    //        let fParams = ResizeArray<ProvidedParameter>()
+    //        let mutable retType : Type = typeof<obj>
+    //        let addToFn = fun (n,t) -> fParams.Add(ProvidedParameter(n,t))
+    //        f.Ret |> (mapToProvidedType parentType (fun (n,t) -> retType <- t) >> ignore)
+    //        let fn = ProviderDsl.makeNoInvokeMethod(Option.defaultValue "Create" f.Source.Name, (fParams.ToArray() |> Array.toList), retType, false)
+    //        parentType.AddMember(fn)
+            
+    //        parentType
+    //    | Property p ->
+    //        let name = p.Source.Name
+    //        mapToProvidedType parentType (fun (n,t) -> provideTo(name, t)) p.Mapped 
                 
+    //    | IFace i ->
+    //        let newType = ProviderDsl.makeType(i.Source.Name, false)
+    //        let addToType = fun (n,t) -> newType.AddMember(ProviderDsl.makeProperty(n,t,false))
+    //        i.Props |> List.iter ((mapToProvidedType newType addToType) >> ignore )
+    //        parentType.AddMember(newType :> Type)
+    //        parentType
+    //    | _ -> parentType
+    
+    
+    //let (|ProvidedReactComponent|_|) (mappedType: MappedType) = 
+    //    match mappedType with 
+    //        | Generic g -> 
+    //            match g.TypeParam with 
+    //            | IFace comp -> 
+    //                match comp.Inherits |> List.tryHead with
+    //                | Some(Generic reactComponent) ->
+    //                    match reactComponent.TypeParam with
+    //                    | React m when m.Member = "Component" -> 
+    //                        match reactComponent.TypeArgs.Head with
+    //                        | IFace props -> Some (IFace props)
+    //                        | _ -> None
+    //                    | _ -> None
+    //                | _ -> None
+    //            | _ -> None
+    //        | _ -> None
+           
+    
+    //let toProvidedTypes (rootType: ProvidedTypeDefinition) exportProps = 
+    //    // these are the entry points
+    //    exportProps 
+    //        |> List.iter(function
+    //                | MappedType.Function f ->
+    //                    let t = mapToProvidedType rootType (fun (n,t) -> rootType.AddMember (ProviderDsl.makeProperty(n,t,false)))
+    //                    ()
+    //                | MappedType.Property p ->   
+    //                     let propertyName = p.Source.Name
+    //                     // extract mapped type
+    //                     match p.Mapped with 
+    //                     | MappedType.IFace i ->
+    //                        // its mapped to an type
+    //                        // we analyse the type properties and have following scenarios
+    //                        // 1. The type has an constructor so we look at the return type of the ctor to determine the actual type
+                            
+    //                        let (returnType, args) = 
+    //                            match i.Source.HasConstructor with 
+    //                            | true -> 
+    //                                let ctor = i.Props.Head // TODO: make this right
+    //                                match ctor with 
+    //                                | MappedType.Function ctorFunction -> 
+    //                                    match ctorFunction.Ret with 
+    //                                    | ProvidedReactComponent(IFace m) ->   
+    //                                        let propType = ProviderDsl.makeType(m.Source.Name, false)
+    //                                        // TODO: Create FActory Fn to instantiate Props
+    //                                        let r = ResizeArray<string * Type>()
+    //                                        m.Props |> List.iter ((mapToProvidedType propType (fun (n,t) -> r.Add(n,t)) >> ignore))
+                                            
+    //                                        let props = seq {
+    //                                                    for (n,t) in r do
+    //                                                    propType.AddMember(ProviderDsl.makeProperty(n,t,false))
+    //                                                    yield ProvidedParameter(n, t)
+    //                                        }
+                                           
+                                            
+    //                                        propType.AddMember(ProviderDsl.makeStaticMethod(props |> Seq.toList))
+    //                                        propType, props
+    //                                | _ -> failwith "Expected Ctor to be a function"
+    //                            | _ -> failwith "Expected Ctor at the moment"
+                        
+    //                        rootType.AddMember returnType
+    //                        rootType.AddMember(ProviderDsl.makeImportReactMethod(propertyName, [ProvidedParameter("props", returnType)], typeof<obj>, true, "react-awesome-button",propertyName))
+    //                        ()
+    //                | _ -> 
+    //                    rootType.AddMember (ProviderDsl.makeNoInvokeMethod("NOT IMPLEMENTED", [], typeof<obj>, true))
+    //                    ()
+    //    )
+    
+   
+    let rec toType<'T> optional = 
+        if optional then typedefof<Option<obj>>.MakeGenericType(typeof<'T>)
+        else typeof<'T>
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =
         inherit TypeProviderForNamespaces (config)
         let asm = System.Reflection.Assembly.GetExecutingAssembly()
-        let ns = "Fable.TypescriptProvider"
+        let ns = "Fable.TypescriptTypeProvider"
         
         
         do System.AppDomain.CurrentDomain.add_AssemblyResolve(ResolveEventHandler(fun _ args ->
@@ -98,17 +218,17 @@ module TypescriptProvider =
             | Some f -> Reflection.Assembly.LoadFrom f
             | None -> null))
 
-        let staticParams = [ProvidedStaticParameter("module",typeof<string>)]
+        let staticParams = [ProvidedStaticParameter("selector",typeof<string>); ProvidedStaticParameter("path",typeof<string>)]
         // TODO rename generator (borrowed from JsonProvider). 
         // Add Options to add additional "render" method into type for direct react component import (main motivation for this project)
-        let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = true)
+        let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = false)
 
         do generator.DefineStaticParameters(
             parameters = staticParams,
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
-                    | [| :? string as arg|] ->
-                        match loadMainDtsFile config.ResolutionFolder arg with
+                    | [| :? string as selector; :? string as path|] ->
+                        match loadMainDtsFile config.ResolutionFolder path with
                         | Error err -> failwith err
                         | Ok tsFile -> 
                             let (allTypes, typeMap) = Transform.createSimplifiedTypeMap tsFile
@@ -117,140 +237,61 @@ module TypescriptProvider =
                             let typesToCreate = Transform.mapToErasableType exportProps
                             let importPath = exVar.Export.Value.Path
                             let importSelector = exVar.Export.Value.Selector
-                            let generativeType = ProviderDsl.makeTypeWithMembers("_"+arg, true, [])
                             //let staticMethodHolder = ProviderDsl.makeType("_", true)
-                            let root = makeRootType(asm, ns, typeName, [])
+                            let tempAsm = ProvidedAssembly()
+                            let root = makeRootType(tempAsm, ns, typeName, false, [])
+                            
+                            //let generateType (root: ProvidedTypeDefinition) (type': MappedType) =
+                            //    match type' with 
+                            //    | Primitive p -> 
+                            //         match p.TypeName with 
+                            //         | "string" ->  p.Name, toType<string> p.IsOptional 
+                            //         | "int" -> p.Name,  toType<int> p.IsOptional 
+                            //         | "float" -> p.Name,  toType<float> p.IsOptional 
+                            //         | "bool" -> p.Name,  toType<bool> p.IsOptional 
+                            //         | _ -> p.Name, typeof<string>
+                            //    | Union u -> 
+                            //         u.Name, typeof<Fable.Core.U2<string,string>>
+                            //    | _ -> "", typeof<string>
 
                             
-                            
-                            
-                            //let addProperties (attachingType: ProvidedTypeDefinition) (props: ErasedType list) =  
-                            //    let rec onProp (prim: (string * Type) -> 'a) =
-                            //        function 
-                            //        | ErasedType.String s -> prim(s, typeof<string>)
-                            //        | ErasedType.Float f -> prim(f, typeof<float>)
-                            //        | ErasedType.Int i -> prim(i, typeof<int>)
-                            //        | ErasedType.Bool b -> prim(b, typeof<bool>)
-                            //        | ErasedType.Option er -> 
-                            //            onProp (fun (n,t) -> prim(n,  typedefof<Option<obj>>.MakeGenericType(t))) er
-                            //        | ErasedType.Fn(name, args, ret, ft) ->
-                            //            let (_,ret) = match ret with 
-                            //                      | ErasedType.Type(n, _) -> 
-                            //                        match typeCache.Get(n) with 
-                            //                        | None -> failwith "Type should already exist"
-                            //                        | Some t -> n, t.BaseType :> Type
-                            //                      | t -> onProp id t
-                                        
-                            //            match args with 
-                            //        | _ -> failwith "dudumm"
-                            //    let onComplexType (fn: (string * #Reflection.MemberInfo) -> unit) =
-                            //        function 
-                            //        | ErasedType.Fn(name, args, ret, ft) ->
-                                        
-                            //            ()
-                            //            //let ret = match onPrimitive ret with 
-                            //            //          | Some (_, ret) -> ret
-                            //            //          | None -> match ret with 
-                            //            //                    | ErasedType.Type(n,_) -> 
-                            //            //                        match typeCache.Get(n) with 
-                            //            //                        | Some n -> n.BaseType
-                            //            //                        | None -> failwith (sprintf "Return Type is unknown: %A" n)
-                            //            ()
+                            //let generateMembers (root: ProvidedTypeDefinition) (members: MappedType list) = 
+                            //    let rec generateMembers members (addList: ProvidedParameter list) = 
+                            //        match members with 
+                            //        | [] -> addList
+                            //        | x::xs ->
+                            //             let (name, t) = generateType root x
+                            //             generateMembers xs (ProvidedParameter(name, t)::addList)
+                            //    generateMembers members []
 
-                                         
-                            //    props |> List.iter (onProp (fun (n,t) -> attachingType.AddMember(ProviderDsl.makeProperty(n, t, true))))
-                            //    props |> List.iter (onComplexType (fun (n,t) -> attachingType.AddMember(ProviderDsl.makeProperty(n, t, true))))
-                            //    ()
+                 
+                            //let generateInterface (root: ProvidedTypeDefinition) (mapped: MappedType list) = 
+                            //    // root iface for exports vars
+                            //    // we append the interface member to our root type
+                            //    for t in mapped do
+                            //     match t with 
+                            //     | Function(f) ->
+                            //         let args = generateMembers root (f.Args |> List.map snd)
+                            //         let (name, ret) = generateType root f.Ret
+                            //         root.AddMember(ProviderDsl.makeImportMethod(f.Name, args, ret, true, path, selector))
+                            //         ()
 
-                            //for t in erasedTypes do 
-                            //    match t with 
-                            //    | ErasedType.Inherits(t, base') ->
-                            //        match base' with 
-                            //        | ErasedType.ReactComponent(props) ->
-                            //            match props with 
-                            //            | None -> failwith "We expect props (atm)"
-                            //            | Some reactProps -> 
-                            //                match reactProps with 
-                            //                | ErasedType.Fn(name, args, ret, kind) ->
-                            //                    match kind with 
-                            //                    | FsFunctionKind.Constructor ->
-                            //                        // we deal with a react component ctor
-                            //                        match ret with 
-                            //                        | ErasedType.Inherits(comp, ErasedType.ReactComponent rootReactProps) -> 
-                            //                            match comp with 
-                            //                            | ErasedType.Type(compName, args) ->
-                                                            
-                            //                                root.AddMember (ProviderDsl.makeImportReactMethod(compName, [], typeof<Fable.React.ReactElement>, true, importPath, n)) 
-                            //                            | _ -> failwith "Component support is WIP"
-                            //                        | _ -> failwith "WIP"
-                            //                | _ -> failwith "we expect a type as props"
-                            //    ()
-
-                            let createExportRoot (types: ErasedType list) = 
-                                
-                                types 
-                                |> List.map(fun t ->
-                                    match t with 
-                                    | ErasedType.Fn(f when f.
-                                )
-
-
-                            let rec mapErasedType (root: ProvidedTypeDefinition) = function
-                                | ErasedType.Inherits(t,base') -> 
-                                    match base' with 
-                                    | ErasedType.ReactComponent(p) -> 
-                                        match p with 
-                                        | None -> failwith "Not yet supported"
-                                        | Some p -> mapErasedType root p
-                                    | _ -> failwith (sprintf "Inheritance with %A is not supported yet " t)
-                                | ErasedType.Type(n,p) -> 
-                                        let t = ProviderDsl.makeType(n, true)
-                                        let props = p |> List.map (mapErasedType t)
-                                                      |> List.map(fun (n,t) -> ProviderDsl.makeProperty(n,t, true))
-                                        t.AddMembers(props)
-                                        root.AddMember t
-                                        (n, t:> Type)
-                                | ErasedType.Fn(n,a,r, fk) -> 
-                                        match fk with 
-                                        | FsFunctionKind.Constructor ->
-                                            match r with 
-                                            | ErasedType.Inherits(t,base') -> 
-                                                match base' with 
-                                                | ErasedType.ReactComponent(p) -> 
-                                                    match t with 
-                                                    | ErasedType.Type(n,args) -> 
-                                                        let args = match p with 
-                                                                   | None -> args |> List.map (mapErasedType root)
-                                                                   | Some p -> [p |> mapErasedType root]
-                                                        let args = args |> List.map (fun (n,t) -> ProvidedParameter(n,t))
-                                                        //if exInterface.Members |> List.map Transform.getFsTypeName |> List.exists(fun x -> x = n)
-                                                        //then 
-                                                        root.AddMember (ProviderDsl.makeImportReactMethod(n, args, typeof<obj>, true, importPath, n)) 
-                                                        (n, root :> Type)
-                                                    | _ -> failwith (sprintf "React component support is WIP for %A" t)
-                                                | _ -> failwith (sprintf "Inheritance with %A is not supported yet " t)
-                                        | _ ->
-                                            let (_,ret) = mapErasedType root r
-                                            let args = a |> List.map (mapErasedType root)
-                                                         |> List.map (fun (n,t) -> ProvidedParameter(n,t))
-
-                                            if exInterface.Members |> List.map Transform.getFsTypeName |> List.exists(fun x -> x = n)
-                                            then root.AddMember (ProviderDsl.makeImportMethod(n, args, ret, true, importPath, importSelector))
-                                            else root.AddMember (ProviderDsl.makeNoInvokeMethod(n, args, ret, false))
-                                            (n, root :> Type)
-                                | ErasedType.Option(s) -> 
-                                    let (n, t) = mapErasedType root s
-                                    (n, typedefof<Option<obj>>.MakeGenericType(t))
-                                | ErasedType.String s -> s, typeof<string>
-                                | ErasedType.Float f -> f, typeof<float>
-                                | _ -> "NOT MATCHED", typeof<string>
-                            
-                            
+                            ///generateInterface root exportProps
+                            let iface2 = ProvidedTypeDefinition("leftPad", Some(typeof<obj>), isInterface = true, isErased = false)
+                            iface2.AddMember(ProvidedProperty("prop1", typeof<string>, false, fun expr -> expr.[0]))
+                            let iface = ProviderDsl.makeTypeWithMembers("IModule", true, [
+                                //ProviderDsl.makeNoInvokeMethod("Test", [], typeof<obj>, true) :> System.Reflection.MemberInfo; 
+                                ProviderDsl.makeProperty("bla", typeof<string>, true) :> System.Reflection.MemberInfo])
+                  
+                            root.AddMember iface2
+                            root.AddMember(iface)
                             
 
                             //erasedTypes |> List.iter (mapErasedType root >> ignore)
                             
                             //root.AddMember root
+                            
+                            tempAsm.AddTypes([root])
                             root
                     | _ -> failwith "unexpected parameter values"
                 )
@@ -260,47 +301,3 @@ module TypescriptProvider =
 
     [<assembly:TypeProviderAssembly>]
     do ()
-
-
-//module FileProvider =
-//    open System.IO
-//    open System.Text
-//    open Samples.FSharp.ProvidedTypes
-//    open Microsoft.FSharp.Core.CompilerServices
-
-//    [<TypeProvider>]
-//    type FilePr() as this =
-//        inherit TypeProviderForNamespaces()
-//        let asm,ns = System.Reflection.Assembly.GetExecutingAssembly(),"FileProvider"
-//        let IniTy = ProvidedTypeDefinition(asm, ns, "FileProv", None)
-//        do IniTy.DefineStaticParameters([ProvidedStaticParameter("path", typeof<string>)],
-//                                        fun tyName [|:? string as path|] ->
-//                                             let ty = ProvidedTypeDefinition(asm, ns, tyName, None)
-//                                             [ProvidedConstructor([ProvidedParameter("path",typeof<string>)],
-//                                                                  InvokeCode=(fun [path]-> <@@ %%path:string @@>))
-//                                              ProvidedConstructor([],InvokeCode=(fun _ -> <@@ Directory.GetCurrentDirectory() @@>))]
-//                                               |>ty.AddMembers 
-//                                             Directory.GetFiles(path)|>Seq.map (fun name->FileInfo(name).Name)
-//                                              |>Seq.iter (fun (name)->
-//                                                           let sty=ProvidedTypeDefinition(name,None)
-//                                                           ty.AddMember sty
-//                                                           [ProvidedProperty("Text",typeof<string>,
-//                                                                             GetterCode=fun [path] -> <@@ Path.Combine((%%path:obj):?>string,name)|>File.ReadAllText @@>)
-//                                                            ProvidedProperty("StreamR",typeof<Stream>,
-//                                                                             GetterCode=fun [path] -> <@@ Path.Combine((%%path:obj):?>string,name)|>File.OpenRead @@>)
-//                                                            ProvidedProperty("StreamW",typeof<Stream>,
-//                                                                             GetterCode=fun [path] -> <@@ Path.Combine((%%path:obj):?>string,name)|>File.OpenWrite @@>)
-//                                                            ProvidedProperty("Name",typeof<string>,
-//                                                                             GetterCode=fun _ -> <@@ name @@>)
-//                                                            ProvidedProperty("FullName",typeof<string>,
-//                                                                             GetterCode=fun [path] -> <@@ Path.Combine((%%path:obj):?>string,name) @@>)]
-//                                                             |>sty.AddMembers
-//                                                           ProvidedMethod("GetText",[ProvidedParameter("Encode",typeof<Encoding>)],typeof<string>,
-//                                                                          InvokeCode=fun [path;enc] -> <@@ File.ReadAllText( Path.Combine((%%path:obj):?>string,name),(%%enc:>Encoding)) @@>)
-//                                                             |>sty.AddMember
-//                                                           let prop=ProvidedProperty(name,sty,GetterCode=fun [arg] -> <@@ (%%arg:obj):?>string @@>)
-//                                                           ty.AddMember prop)
-//                                             ty)
-//           this.AddNamespace(ns, [IniTy])
-//    [<TypeProviderAssembly>]
-//    do()

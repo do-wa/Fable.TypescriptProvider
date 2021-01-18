@@ -46,19 +46,24 @@ let makeJsNativeMethod (name: string, params': ProvidedParameter list, returnTyp
         isStatic = isStatic
     )
 
-let makeImportDefaultMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        false,
-        (fun args -> <@@ Fable.Core.JsInterop.importAll path @@>),
-        isStatic = isStatic
-    )
+let inline assignableFrom (expr: Expr) = 
+   if expr.Type.IsAssignableFrom(typeof<float>) then typeof<float>
+   elif expr.Type.IsAssignableFrom(typeof<string>) then typeof<string>
+   elif expr.Type.IsAssignableFrom(typeof<bool>) then typeof<bool>
+   elif expr.Type.IsAssignableFrom(typeof<int>) then typeof<int>
+   else typeof<obj>
 
 
-let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
+let inline boxU2<'u1,'u2> (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<Fable.Core.U2<'u1, 'u2>>) then <@ box(%%expr:Fable.Core.U2<'u1,'u2>) @> else failwith "Union not supported"
+let inline boxTyped (expr: Expr) = 
+                                   
+                                   if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
                                    elif expr.Type.IsAssignableFrom(typeof<string>) then <@ box(%%expr:string) @>
+                                   elif expr.Type.IsAssignableFrom(typeof<bool>) then <@ box(%%expr:bool) @>
+                                   elif expr.Type.IsAssignableFrom(typeof<int>) then <@ box(%%expr:int) @>
+                                   elif expr.Type.IsAssignableFrom(typeof<obj>) then <@ box(%%expr:>obj) @>
+                                   elif expr.Type.IsGenericType && expr.Type.GetGenericArguments().Length = 2 then 
+                                        <@ box(%%expr:bool) @>
                                    else failwith "Type not supported yet"
 
 // this was previously completely inline                                   
@@ -68,9 +73,14 @@ let inline exprAsFnArgs (args: Expr list) =
                     |> List.map(fun arg -> boxTyped arg )
                     |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
 
-                    
-let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
-let inline invokeFableFn1Arg (path: string, selector: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%%args.[0] :> obj) @@>
+let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list) -> 
+        if selector = "*" then 
+            <@@  (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
+        elif selector = "default" then 
+            <@@ (Fable.Core.JsInterop.importDefault path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray)  @@>
+        else <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
+   
+
 let makeImportReactMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
     ProvidedMethod(
         name, 
@@ -81,18 +91,9 @@ let makeImportReactMethod(name: string, params': ProvidedParameter list, returnT
         isStatic = isStatic
     )
 
+
+
 let makeImportMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
-    if params'.Length = 1 
-    then
-        ProvidedMethod(
-            name, 
-            params',
-            returnType,
-            false,
-            invokeFableFn1Arg(path, selector),
-            isStatic = isStatic
-        )
-    else 
         ProvidedMethod(
             name, 
             params',
@@ -140,7 +141,7 @@ let makeDumbMethod(name: string, params': ProvidedParameter list, returnType: Sy
         isStatic = isStatic
     )
 
-let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, members: #MemberInfo list) =
-    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true)
+let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, isErased : bool, members: #MemberInfo list) =
+    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = isErased)
     root.AddMembers members
     root

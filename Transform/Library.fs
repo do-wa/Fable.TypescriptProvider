@@ -4,7 +4,7 @@ open ts2fable
 open ts2fable.Syntax
 open System
 open System.Collections.Generic
-open ProviderImplementation.ProvidedTypes
+
 
 
 // TODO: Interop between ts2fable and TypeProvider 
@@ -82,9 +82,10 @@ type MappedType =
     | React of {| Member : string |}
     | Primitive of {| Name: string; TypeName : string; IsOptional: bool  |}
     | Property of {| Parents: (ParentInfo list); Source: FsProperty; Mapped:  MappedType |}
-    | Function of {| Parents: (ParentInfo list); Source: FsFunction; Args: ((FsParam * MappedType) list); Ret: MappedType  |}
-    | IFace of {| Parents: (ParentInfo list); Inherits: (MappedType list); Source: FsInterface; Props: (MappedType list) |}
+    | Function of {| Parents: (ParentInfo list); Source: FsFunction; Args: ((FsParam * MappedType) list); Ret: MappedType; Name: string  |}
+    | IFace of {| Parents: (ParentInfo list); Inherits: (MappedType list); Source: FsInterface; Props: (MappedType list); Name: string |}
     | Generic of {| TypeParam : MappedType; TypeArgs:(MappedType list) |}
+    | Union of {| Name: string; Types: MappedType list; IsOptional: bool|}
     | NotMapped of string
 
 
@@ -116,14 +117,18 @@ let rec private getResolvedType (typeMap: Dictionary<string, FsType>) (parents: 
     | FsType.Interface i ->    
         let heritage = i.Inherits |> List.map (getResolvedType typeMap [])
         let members = i.Members |> List.map (getResolvedType typeMap (({ Name = i.Name; IsOptional = false })::parents))
-        MappedType.IFace({|Parents = parents; Inherits = heritage; Source= i; Props = members|})
+        MappedType.IFace({|Parents = parents; Inherits = heritage; Source= i; Props = members; Name = i.Name|})
     | FsType.Property p -> 
         let root = getResolvedType typeMap parents p.Type
         MappedType.Property({| Parents = ({Name = p.Name; IsOptional = p.Option})::parents; Source = p; Mapped = root |})
     | FsType.Function f -> 
         let args = f.Params |> List.map(fun p -> p, getResolvedType typeMap (({Name = p.Name; IsOptional = p.Optional})::parents )p.Type)
         let ret = f.ReturnType |> getResolvedType typeMap []
-        MappedType.Function({| Parents = parents; Source = f; Args = args; Ret= ret |})
+        MappedType.Function({| Parents = parents; Source = f; Args = args; Ret= ret; Name = Option.defaultValue "default" f.Name |})
+    | FsType.Union u -> 
+        let isOptional = u.Option
+        let members = u.Types |> List.map (getResolvedType typeMap parents)
+        MappedType.Union({| Name = parents.Head.Name; Types = members; IsOptional = isOptional |})
     | _ -> MappedType.NotMapped((sprintf "%A" fsType))
 
 let createSimplifiedTypeMap (file: FsFileOut) =
@@ -200,98 +205,6 @@ let rec private mapMappedTypeToErasedType (mappedType: MappedType) =
         then ErasedType.Inherits(t, heritage.Head)
         else failwith "Support chains"
     | _ -> ErasedType.String(Guid.NewGuid().ToString().Replace("-",""))
-
-
-let rec private mapToProvidedType (parentType: ProvidedTypeDefinition) (provideTo: string * Type -> unit) (mappedType: MappedType)  =
-    match mappedType with
-    | Primitive p ->
-        match p.TypeName,p.IsOptional with 
-        | "string", true -> 
-            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<string>))
-        | "string", false -> 
-            provideTo(p.Name, typeof<string>)
-        | "int", true -> 
-            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<int>))
-        | "int", false -> 
-            provideTo(p.Name, typeof<int>)
-        | "float", true -> 
-            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<float>))
-        | "float", false -> 
-            provideTo(p.Name, typeof<float>)
-        | "bool", true -> 
-            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<bool>))
-        | "bool", false ->
-           provideTo(p.Name, typeof<bool>)
-        | "unit", _ ->
-           provideTo(p.Name, typeof<unit>)
-        | _ , _ -> 
-           provideTo(Guid.NewGuid().ToString().Replace("-",""), typeof<string>)
-        parentType
-    | Function f ->
-        let fParams = ResizeArray<ProvidedParameter>()
-        let mutable retType : Type = typeof<obj>
-        let addToFn = fun (n,t) -> fParams.Add(ProvidedParameter(n,t))
-        f.Ret |> (mapToProvidedType parentType (fun (n,t) -> retType <- t) >> ignore)
-        let fn = ProviderDsl.makeNoInvokeMethod(Option.defaultValue "Create" f.Source.Name, (fParams.ToArray() |> Array.toList), retType, false)
-        parentType.AddMember(fn)
-        
-        parentType
-    | IFace i ->
-        let newType = ProviderDsl.makeType(i.Source.Name, false)
-        let addToType = fun (n,t) -> newType.AddMember(ProviderDsl.makeProperty(n,t,false))
-        i.Props |> List.iter ((mapToProvidedType newType addToType) >> ignore )
-        parentType.AddMember(newType :> Type)
-        parentType
-    | _ -> parentType
-
-
-let (|ProvidedReactComponent|_|) (mappedType: MappedType) = 
-    match mappedType with 
-        | Generic g -> 
-            match g.TypeParam with 
-            | IFace comp -> 
-                match comp.Inherits |> List.tryHead with
-                | Some(Generic reactComponent) ->
-                    match reactComponent.TypeParam with
-                    | React m when m.Member = "Component" -> 
-                        match reactComponent.TypeArgs.Head with
-                        | IFace props -> Some (IFace props)
-                        | _ -> None
-                    | _ -> None
-                | _ -> None
-            | _ -> None
-        | _ -> None
-       
-
-let toProvidedTypes (rootType: ProvidedTypeDefinition) exportProps = 
-    // these are the entry points
-    exportProps 
-    |> List.collect(function
-                | MappedType.Property p ->   
-                     let propertyName = p.Source.Name
-                     // extract mapped type
-                     match p.Mapped with 
-                     | MappedType.IFace i ->
-                        // its mapped to an type
-                        // we analyse the type properties and have following scenarios
-                        // 1. The type has an constructor so we look at the return type of the ctor to determine the actual type
-                        let returnType = 
-                            match i.Source.HasConstructor with 
-                            | true -> 
-                                let ctor = i.Props.Head // TODO: make this right
-                                match ctor with 
-                                | MappedType.Function ctorFunction -> 
-                                    match ctorFunction.Ret with 
-                                    | ProvidedReactComponent(IFace m) ->   
-                                        let propType = ProviderDsl.makeType(m.Source.Name, true)
-                                        // TODO: Create FActory Fn to instantiate Props
-                                        m.Props |> List.iter ((mapToProvidedType propType (fun (n,t) -> propType.AddMember(ProviderDsl.makeProperty(n,t,false)))) >> ignore)
-                                        propType
-                                | _ -> failwith "Expected Ctr to be a function"
-                            | _ -> failwith "Expected Ctor at the moment"
-                        []
-                | _ -> failwith "Not supported yet"
-    )
 
 let mapToErasableType exportProps = 
     // these are the entry points

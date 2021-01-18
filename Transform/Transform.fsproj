@@ -5,8 +5,6 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <Compile Include="ProvidedTypes.fs" />
-    <Compile Include="ProviderDsl.fs" />
     <Compile Include="Library.fs" />
   </ItemGroup>
 
