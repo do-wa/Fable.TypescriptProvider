@@ -104,7 +104,14 @@ let makeImportDefaultMethod(name: string, params': ProvidedParameter list, retur
 
 //let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
 
-
+// this should be further optimize
+// todo: explain why
+let inline invokeFableObjFn (libVersion:string, paramNames: string list) = fun (args: Expr list) -> 
+        let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
+                 
+        <@@ 
+            (Fable.Core.JsInterop.import "createObj" libVersion : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs |> Array.toList |> List.mapi(fun i v -> box (paramNames.[i], v)))
+        @@>
 let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list) -> 
     let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
     if selector = "*" then 

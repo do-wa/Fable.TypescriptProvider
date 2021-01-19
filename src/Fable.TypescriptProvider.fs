@@ -264,13 +264,13 @@ module TypescriptProvider =
         moduleDeclaration.AddMembers variables
 
         // testarea
-        let otherT = ProvidedTypeDefinition("Nested", Some typeof<seq<string*obj>>)
+        let otherT = ProvidedTypeDefinition("Nested", Some typeof<obj>)
         let ctorT = ProvidedConstructor([], fun args -> 
                         let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
                         <@@ (Fable.Core.JsInterop.import "createObj" "./.fable/fable-library.3.1.1/Util.js" : Fable.Core.JsInterop.JsFunc).Invoke([| "A", box "B" |]) @@>
                         )
         otherT.AddMember(ctorT)
-        let t = ProvidedTypeDefinition("Props", Some typeof<seq<string*obj>>)
+        let t = ProvidedTypeDefinition("Props", Some typeof<obj>)
         let props = [
                 ProvidedParameter("A", typeof<string>)
                 ProvidedParameter("B", typeof<int>)
@@ -278,9 +278,7 @@ module TypescriptProvider =
             ]
 
         let ctor = ProvidedConstructor(props, 
-            fun args -> 
-                    let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
-                    <@@ (Fable.Core.JsInterop.import "createObj" "./.fable/fable-library.3.1.1/Util.js" : Fable.Core.JsInterop.JsFunc).Invoke([| "A", box "B" |]) @@>
+            invokeFableObjFn("./.fable/fable-library.3.1.1/Util.js", ["A";"B";"C"])
         )
         t.AddMember(ctor)
         // end the tests!
