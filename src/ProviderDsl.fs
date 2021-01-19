@@ -91,26 +91,58 @@ let makeImportDefaultMethod(name: string, params': ProvidedParameter list, retur
     )
 
 
-let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
-                                   elif expr.Type.IsAssignableFrom(typeof<string>) then <@ box(%%expr:string) @>
-                                   else failwith "Type not supported yet"
+//let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
+//                                   elif expr.Type.IsAssignableFrom(typeof<string>) then <@ box(%%expr:string) @>
+//                                   else failwith "Type not supported yet"
 
-// this was previously completely inline                                   
-let inline exprAsFnArgs (args: Expr list) = 
-                    args
-                    |> List.rev
-                    |> List.map(fun arg -> boxTyped arg )
-                    |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
+//// this was previously completely inline                                   
+//let inline exprAsFnArgs (args: Expr list) = 
+//                    args
+//                    |> List.rev
+//                    |> List.map(fun arg -> boxTyped arg )
+//                    |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
 
-let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
+//let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
 
-let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
+
+let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list) -> 
+    let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
+    if selector = "*" then 
+        <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs) @@>
+    elif selector = "default" then 
+        <@@ (Fable.Core.JsInterop.importDefault path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs)  @@>
+    else 
+        <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs) @@>
+    //let first = Expr.Cast<Fable.Core.U2<_,_>> args.[0]
+    //let second = Expr.Cast<obj> args.[1]
+    //let third = Expr.Cast<Fable.Core.U2<_,_>> args.[2]
+    
+    //let u2Type = args.[0].Type
+    //let argTypes = u2Type.GenericTypeArguments 
+    
+    //let tdo = typedefof<Fable.Core.U2<_,_>>
+    //let u2 = tdo.MakeGenericType(argTypes.[0],argTypes.[1]) // unpack
+    //let coerced = Expr.Coerce(args.[0], typeof<obj>) 
+
+    //let arg = Var.Global("first", u2)
+    //let e = Expr.Lambda(arg, args.[0])
+
+    //let whatIsIt = match args.[0] with 
+    //              | NewUnionCase(at,_) -> at.Name
+    //              | _ -> "Nope"
+    //let allArgs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>,nargs))
+    ////Expr.va
+    ////<@@ sprintf "%A" (wrap(%%args.[0])) @@>
+    //<@@ (Fable.Core.JsInterop.importDefault path : Fable.Core.JsInterop.JsFunc).Invoke(%%allArgs)  @@>
+   
+
+let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
     ProvidedMethod(
         name, 
         params',
         returnType,
         false,
-        invokeFableFn(path),
+        invokeFableFn(path, selector),
         isStatic = isStatic
     )
 
