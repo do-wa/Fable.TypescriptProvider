@@ -115,6 +115,16 @@ module TypescriptProvider =
                     |> List.map(fun param -> 
                         let name = param.Name
                         match param.Type with 
+                        | ts2fable.Syntax.FsType.Union union ->
+                                   let possibleTypes = union.Types 
+                                                       |> List.map (function | FsType.Mapped m -> mapType types [moduleName;m.Name] union.Option | _ -> failwith "Non-Mapped Type not supported yet")
+                                   match possibleTypes.Length with 
+                                   | 1 -> name, possibleTypes.[0]
+                                   | 2 -> let tdo = typedefof<U2<_,_>>
+                                          let u2 = tdo.MakeGenericType(mapErasedType possibleTypes.[0],mapErasedType possibleTypes.[1]) // unpack
+                                          name, ErasedType.Custom(u2) // pack again
+                                   | _ -> failwith "Currently only supporting Unions up to 2 values"
+                                    
                         | ts2fable.Syntax.FsType.Mapped mapped -> 
                             let mappedType = mapType types [moduleName;mapped.Name] param.Optional
                             name, mappedType
@@ -137,7 +147,7 @@ module TypescriptProvider =
         }
         lines |> String.concat "\n"
 
-    let rec toModule (typeMap: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (module': FsModule) =
+    let rec toModule (path: string, selector: string) (typeMap: Collections.Generic.Dictionary<string list, CachedTypeInformation>) (module': FsModule)  =
         let nestedModules = 
                    module'.Types 
                    |> List.tryPick(function | FsType.Module m -> Some m | _ -> None)
@@ -181,12 +191,11 @@ module TypescriptProvider =
                     | Some t -> 
                         let (methodImporter, propImporter, export) = 
                             match var.Export with 
-                            | Some ex when ex.Selector = "*" -> ProviderDsl.makeImportAllMethod,ProviderDsl.makeImportAllProperty, ex
-                            | Some ex -> failwith (sprintf "Import Method '%s' not yet supported" ex.Selector)
+                            | Some ex -> ProviderDsl.makeImportAllMethod,ProviderDsl.makeImportAllProperty, ex
                             | _ -> failwith "Module Export expected"
                         let methods = 
                             t.Methods 
-                            |> List.map(fun m -> methodImporter(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, export.Path) :> Reflection.MemberInfo)
+                            |> List.map(fun m -> methodImporter(m.Name, m.Parameters |> Array.toList, m.ReturnType, true, path, selector) :> Reflection.MemberInfo)
                         let properties = 
                             t.Properties
                             |> List.map(fun p -> propImporter(p.Name, p.PropertyType, export.Path) :> Reflection.MemberInfo)
@@ -253,6 +262,30 @@ module TypescriptProvider =
         if innerModuleTypes <> None then moduleDeclaration.AddMembers(innerModuleTypes.Value)
         moduleDeclaration.AddMembers interfaces
         moduleDeclaration.AddMembers variables
+
+        // testarea
+        let otherT = ProvidedTypeDefinition("Nested", Some typeof<seq<string*obj>>)
+        let ctorT = ProvidedConstructor([], fun args -> 
+                        let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
+                        <@@ (Fable.Core.JsInterop.import "createObj" "./.fable/fable-library.3.1.1/Util.js" : Fable.Core.JsInterop.JsFunc).Invoke([| "A", box "B" |]) @@>
+                        )
+        otherT.AddMember(ctorT)
+        let t = ProvidedTypeDefinition("Props", Some typeof<seq<string*obj>>)
+        let props = [
+                ProvidedParameter("A", typeof<string>)
+                ProvidedParameter("B", typeof<int>)
+                ProvidedParameter("C", otherT)
+            ]
+
+        let ctor = ProvidedConstructor(props, 
+            fun args -> 
+                    let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
+                    <@@ (Fable.Core.JsInterop.import "createObj" "./.fable/fable-library.3.1.1/Util.js" : Fable.Core.JsInterop.JsFunc).Invoke([| "A", box "B" |]) @@>
+        )
+        t.AddMember(ctor)
+        // end the tests!
+        moduleDeclaration.AddMember otherT
+        moduleDeclaration.AddMember t
         moduleDeclaration
     // stringvaraint         
     //let extractTs2Fable scriptName copyToPath = 
@@ -337,7 +370,10 @@ module TypescriptProvider =
         let asm = System.Reflection.Assembly.GetExecutingAssembly()
         let ns = "Fable.TypescriptProvider"
         
-        let staticParams = [ProvidedStaticParameter("module",typeof<string>)]
+        let staticParams = [
+                ProvidedStaticParameter("selector", typeof<string>)
+                ProvidedStaticParameter("path",typeof<string>)
+            ]
         // TODO rename generator (borrowed from JsonProvider). 
         // Add Options to add additional "render" method into type for direct react component import (main motivation for this project)
         let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = true)
@@ -346,8 +382,8 @@ module TypescriptProvider =
             parameters = staticParams,
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
-                    | [| :? string as arg|] ->
-                        match loadMainDtsFile config.ResolutionFolder arg with
+                    | [|:? string as selector ; :? string as path|] ->
+                        match loadMainDtsFile config.ResolutionFolder path with
                         | Error err -> failwith err
                         | Ok tsType -> 
                             let typeMap = Collections.Generic.Dictionary<string list, CachedTypeInformation>()
@@ -356,8 +392,8 @@ module TypescriptProvider =
                             let otherFiles = files |> List.choose(fun f -> match f.Kind with | FsFileKind.Extra _ -> Some f | _ -> None)
                             let indexFile = files |> List.pick(fun f -> match f.Kind with | FsFileKind.Index -> Some f | _ -> None) // TODO: more than one?
 
-                            let otherModules = otherFiles|> List.collect(fun m -> m.Modules |> List.map (toModule typeMap))
-                            let indexModules = indexFile.Modules |> List.map (toModule typeMap) 
+                            let otherModules = otherFiles|> List.collect(fun m -> m.Modules |> List.map (toModule (path, selector) typeMap))
+                            let indexModules = indexFile.Modules |> List.map (toModule (path, selector) typeMap) 
 
                             let allModules = indexModules @ otherModules
 
