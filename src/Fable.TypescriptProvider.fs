@@ -16,12 +16,6 @@ module TypescriptProvider =
     open Thoth.Json.Net
     open ts2fable.Syntax
     open Transform
-    
-    type CachedTypeInformation = {
-        BaseType: ProvidedTypeDefinition
-    }
-
-  
    
     let runTs2FableModule scriptPath scriptName (dtsFile: string) out = 
         try 
@@ -81,126 +75,71 @@ module TypescriptProvider =
                 else failwith "Could not load ts2fable Typing Information"
             | None -> failwith "Could not find index dts file"
     
-    
-    
-    //let rec private mapToProvidedType (parentType: ProvidedTypeDefinition) (provideTo: string * Type -> unit) (mappedType: MappedType)  =
-    //    match mappedType with
-    //    | Primitive p ->
-    //        match p.TypeName,p.IsOptional with 
-    //        | "string", true -> 
-    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<string>))
-    //        | "string", false -> 
-    //            provideTo(p.Name, typeof<string>)
-    //        | "int", true -> 
-    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<int>))
-    //        | "int", false -> 
-    //            provideTo(p.Name, typeof<int>)
-    //        | "float", true -> 
-    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<float>))
-    //        | "float", false -> 
-    //            provideTo(p.Name, typeof<float>)
-    //        | "bool", true -> 
-    //            provideTo(p.Name, typedefof<Option<obj>>.MakeGenericType(typeof<bool>))
-    //        | "bool", false ->
-    //           provideTo(p.Name, typeof<bool>)
-    //        | "unit", _ ->
-    //           provideTo(p.Name, typeof<unit>)
-    //        | _ , _ -> 
-    //           provideTo(Guid.NewGuid().ToString().Replace("-",""), typeof<string>)
-    //        parentType
-    //    | Function f ->
-    //        let fParams = ResizeArray<ProvidedParameter>()
-    //        let mutable retType : Type = typeof<obj>
-    //        let addToFn = fun (n,t) -> fParams.Add(ProvidedParameter(n,t))
-    //        f.Ret |> (mapToProvidedType parentType (fun (n,t) -> retType <- t) >> ignore)
-    //        let fn = ProviderDsl.makeNoInvokeMethod(Option.defaultValue "Create" f.Source.Name, (fParams.ToArray() |> Array.toList), retType, false)
-    //        parentType.AddMember(fn)
-            
-    //        parentType
-    //    | Property p ->
-    //        let name = p.Source.Name
-    //        mapToProvidedType parentType (fun (n,t) -> provideTo(name, t)) p.Mapped 
+    let rec mapApiExport asm ns (DEV_FABLE_LIB_VER) (path) (selector) (ex: ApiExport) =
+        let rec mapErasedType (isRoot :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
+                match erased with 
+                | ErasedType.Fn f ->
+                    let returnType = mapErasedType false parent f.ReturnType
+                    let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType false parent t)))
+                    if isRoot then 
+                        let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, isRoot, path, selector)
+                        parent.AddMember method
+                        parent :> Type
+                    else failwith "Figure other function out"
+                | ErasedType.Custom c -> 
+                    let t = ProvidedTypeDefinition(c.Name, Some typeof<obj>)
+                    let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType false t c)))
+                    let ctor = ProviderDsl.makeCtor(DEV_FABLE_LIB_VER, props)
+                    t.AddMember ctor
+                    parent.AddMember t
+                    parent :> Type
+                | ErasedType.Union u ->
+                    let possibleTypes = u |> List.map(fun t -> mapErasedType false parent t)
+                    match possibleTypes.Length with 
+                    | 1 -> possibleTypes.[0]
+                    | o -> 
+                        match o with 
+                        | 2 -> 
+                            let tdo = typedefof<U2<_,_>>
+                            let u2 = tdo.MakeGenericType(possibleTypes |> List.toArray)
+                            u2
+                        | _ -> failwith "Implement more than 2 cases"
+                | ErasedType.Enum(enum) -> 
+                    let enumBaseType = ProvidedTypeDefinition(enum.Name, None)
+                    
+                    match enum.Type with 
+                    | FsEnumCaseType.Numeric ->
+                        enumBaseType.SetEnumUnderlyingType(typeof<float>)
+                        enum.Cases 
+                        |> List.iteri(fun i case -> 
+                            enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Convert.ToDouble (Option.defaultValue (i.ToString()) case.Value)))
+                        )
+                    | FsEnumCaseType.String
+                    | FsEnumCaseType.Unknown ->
+                        enumBaseType.SetEnumUnderlyingType(typeof<string>)
+                        enum.Cases 
+                        |> List.iteri(fun i case -> enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Option.defaultValue (case.Name+i.ToString()) case.Value)))
+                    
+                    enumBaseType :> Type
+                | ErasedType.String -> typeof<string>
+                | ErasedType.Bool -> typeof<bool>
+                | ErasedType.Int -> typeof<int>
+                | ErasedType.Float -> typeof<float>
+                | ErasedType.Array t -> (mapErasedType false parent t).MakeArrayType()
+                | ErasedType.Option o -> typedefof<Option<obj>>.MakeGenericType(mapErasedType false parent o)
+                | _ -> parent :> Type
                 
-    //    | IFace i ->
-    //        let newType = ProviderDsl.makeType(i.Source.Name, false)
-    //        let addToType = fun (n,t) -> newType.AddMember(ProviderDsl.makeProperty(n,t,false))
-    //        i.Props |> List.iter ((mapToProvidedType newType addToType) >> ignore )
-    //        parentType.AddMember(newType :> Type)
-    //        parentType
-    //    | _ -> parentType
-    
-    
-    //let (|ProvidedReactComponent|_|) (mappedType: MappedType) = 
-    //    match mappedType with 
-    //        | Generic g -> 
-    //            match g.TypeParam with 
-    //            | IFace comp -> 
-    //                match comp.Inherits |> List.tryHead with
-    //                | Some(Generic reactComponent) ->
-    //                    match reactComponent.TypeParam with
-    //                    | React m when m.Member = "Component" -> 
-    //                        match reactComponent.TypeArgs.Head with
-    //                        | IFace props -> Some (IFace props)
-    //                        | _ -> None
-    //                    | _ -> None
-    //                | _ -> None
-    //            | _ -> None
-    //        | _ -> None
-           
-    
-    //let toProvidedTypes (rootType: ProvidedTypeDefinition) exportProps = 
-    //    // these are the entry points
-    //    exportProps 
-    //        |> List.iter(function
-    //                | MappedType.Function f ->
-    //                    let t = mapToProvidedType rootType (fun (n,t) -> rootType.AddMember (ProviderDsl.makeProperty(n,t,false)))
-    //                    ()
-    //                | MappedType.Property p ->   
-    //                     let propertyName = p.Source.Name
-    //                     // extract mapped type
-    //                     match p.Mapped with 
-    //                     | MappedType.IFace i ->
-    //                        // its mapped to an type
-    //                        // we analyse the type properties and have following scenarios
-    //                        // 1. The type has an constructor so we look at the return type of the ctor to determine the actual type
-                            
-    //                        let (returnType, args) = 
-    //                            match i.Source.HasConstructor with 
-    //                            | true -> 
-    //                                let ctor = i.Props.Head // TODO: make this right
-    //                                match ctor with 
-    //                                | MappedType.Function ctorFunction -> 
-    //                                    match ctorFunction.Ret with 
-    //                                    | ProvidedReactComponent(IFace m) ->   
-    //                                        let propType = ProviderDsl.makeType(m.Source.Name, false)
-    //                                        // TODO: Create FActory Fn to instantiate Props
-    //                                        let r = ResizeArray<string * Type>()
-    //                                        m.Props |> List.iter ((mapToProvidedType propType (fun (n,t) -> r.Add(n,t)) >> ignore))
-                                            
-    //                                        let props = seq {
-    //                                                    for (n,t) in r do
-    //                                                    propType.AddMember(ProviderDsl.makeProperty(n,t,false))
-    //                                                    yield ProvidedParameter(n, t)
-    //                                        }
-                                           
-                                            
-    //                                        propType.AddMember(ProviderDsl.makeStaticMethod(props |> Seq.toList))
-    //                                        propType, props
-    //                                | _ -> failwith "Expected Ctor to be a function"
-    //                            | _ -> failwith "Expected Ctor at the moment"
-                        
-    //                        rootType.AddMember returnType
-    //                        rootType.AddMember(ProviderDsl.makeImportReactMethod(propertyName, [ProvidedParameter("props", returnType)], typeof<obj>, true, "react-awesome-button",propertyName))
-    //                        ()
-    //                | _ -> 
-    //                    rootType.AddMember (ProviderDsl.makeNoInvokeMethod("NOT IMPLEMENTED", [], typeof<obj>, true))
-    //                    ()
-    //    )
-    
-   
-    let rec toType<'T> optional = 
-        if optional then typedefof<Option<obj>>.MakeGenericType(typeof<'T>)
-        else typeof<'T>
+
+        let (name, types) = match ex.Type' with 
+                            | ErasedType.Custom c when c.Name.Contains("IExport") -> ex.Name, (c.Properties |> List.map snd)
+                            | c -> ex.Name, [c]
+
+        let root = makeRootType(asm, ns, name, true)
+        
+        let members = types |> List.map (mapErasedType true root)
+                           
+        root.AddMembers members 
+        root
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =
@@ -218,81 +157,33 @@ module TypescriptProvider =
             | Some f -> Reflection.Assembly.LoadFrom f
             | None -> null))
 
-        let staticParams = [ProvidedStaticParameter("selector",typeof<string>); ProvidedStaticParameter("path",typeof<string>)]
-        // TODO rename generator (borrowed from JsonProvider). 
-        // Add Options to add additional "render" method into type for direct react component import (main motivation for this project)
-        let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = false)
+        let staticParams = [
+                ProvidedStaticParameter("selector",typeof<string>)
+                ProvidedStaticParameter("path",typeof<string>)
+            ]
+        let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = true)
 
         do generator.DefineStaticParameters(
             parameters = staticParams,
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
-                    | [| :? string as selector; :? string as path|] ->
+                    | [| :? string as selector; :? string as path |] ->
                         match loadMainDtsFile config.ResolutionFolder path with
                         | Error err -> failwith err
                         | Ok tsFile -> 
-                            let (allTypes, typeMap) = Transform.createSimplifiedTypeMap tsFile
-                            
-                            let (exVar, exInterface, exportProps) = Transform.getTypeSignature typeMap
-                            let typesToCreate = Transform.mapToErasableType exportProps
-                            let importPath = exVar.Export.Value.Path
-                            let importSelector = exVar.Export.Value.Selector
-                            //let staticMethodHolder = ProviderDsl.makeType("_", true)
-                            let tempAsm = ProvidedAssembly()
-                            let root = makeRootType(tempAsm, ns, typeName, false, [])
-                            
-                            //let generateType (root: ProvidedTypeDefinition) (type': MappedType) =
-                            //    match type' with 
-                            //    | Primitive p -> 
-                            //         match p.TypeName with 
-                            //         | "string" ->  p.Name, toType<string> p.IsOptional 
-                            //         | "int" -> p.Name,  toType<int> p.IsOptional 
-                            //         | "float" -> p.Name,  toType<float> p.IsOptional 
-                            //         | "bool" -> p.Name,  toType<bool> p.IsOptional 
-                            //         | _ -> p.Name, typeof<string>
-                            //    | Union u -> 
-                            //         u.Name, typeof<Fable.Core.U2<string,string>>
-                            //    | _ -> "", typeof<string>
+                            let (_, typeMap) = Transform.createSimplifiedTypeMap tsFile
+                            let api = Transform.buildApi typeMap
 
                             
-                            //let generateMembers (root: ProvidedTypeDefinition) (members: MappedType list) = 
-                            //    let rec generateMembers members (addList: ProvidedParameter list) = 
-                            //        match members with 
-                            //        | [] -> addList
-                            //        | x::xs ->
-                            //             let (name, t) = generateType root x
-                            //             generateMembers xs (ProvidedParameter(name, t)::addList)
-                            //    generateMembers members []
-
-                 
-                            //let generateInterface (root: ProvidedTypeDefinition) (mapped: MappedType list) = 
-                            //    // root iface for exports vars
-                            //    // we append the interface member to our root type
-                            //    for t in mapped do
-                            //     match t with 
-                            //     | Function(f) ->
-                            //         let args = generateMembers root (f.Args |> List.map snd)
-                            //         let (name, ret) = generateType root f.Ret
-                            //         root.AddMember(ProviderDsl.makeImportMethod(f.Name, args, ret, true, path, selector))
-                            //         ()
-
-                            ///generateInterface root exportProps
-                            let iface2 = ProvidedTypeDefinition("leftPad", Some(typeof<obj>), isInterface = true, isErased = false)
-                            iface2.AddMember(ProvidedProperty("prop1", typeof<string>, false, fun expr -> expr.[0]))
-                            let iface = ProviderDsl.makeTypeWithMembers("IModule", true, [
-                                //ProviderDsl.makeNoInvokeMethod("Test", [], typeof<obj>, true) :> System.Reflection.MemberInfo; 
-                                ProviderDsl.makeProperty("bla", typeof<string>, true) :> System.Reflection.MemberInfo])
-                  
-                            root.AddMember iface2
-                            root.AddMember(iface)
+                            let root = makeRootType(asm, ns, typeName, true)
                             
-
-                            //erasedTypes |> List.iter (mapErasedType root >> ignore)
-                            
-                            //root.AddMember root
-                            
-                            tempAsm.AddTypes([root])
                             root
+                            //try 
+                                
+                            //    let apiExports = api |> Seq.map (mapApiExport asm ns "./.fable/fable-library.3.1.1/Util.js" path selector) |> Seq.head // single export definition only atm
+                            //    apiExports
+                            //with 
+                            //| ex -> failwith ex.Message
                     | _ -> failwith "unexpected parameter values"
                 )
             )

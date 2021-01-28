@@ -8,14 +8,13 @@ let awesomebutton = """{"Namespace":"react-awesome-button.6.5.1","Opens":["Syste
 
 [<EntryPoint>]
 let main argv =
-    let fsFile = Thoth.Json.Net.Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> leftPadSample
+    let fsFile = Thoth.Json.Net.Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> awesomebutton
     let t = 
        match fsFile with 
         | Ok fsFile -> 
             let (allTypes, typeMap) = createSimplifiedTypeMap fsFile
-            let (exVar, exIm, callableApi) = getTypeSignature typeMap
-            let x = mapToErasableType callableApi
-            callableApi
+            let api = buildApi typeMap |> Seq.toList
+            api
         | Error err -> failwith err
     //let test = Transform.toProvidedTypes (ProviderDsl.makeType("root", false)) t
     Microsoft.FSharpLu.Json.Compact.serializeToFile "./test.json" t
