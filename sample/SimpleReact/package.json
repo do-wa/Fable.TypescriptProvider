@@ -9,6 +9,7 @@
     "react": "^17.0.1",
     "react-awesome-button": "^6.5.1",
     "react-dom": "^17.0.1",
+    "react-lite-button": "^1.1.5",
     "uuid": "^8.3.1",
     "webpack": "^4.41.6",
     "webpack-cli": "^3.3.11",

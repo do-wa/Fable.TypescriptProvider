@@ -4,10 +4,10 @@
   ],
   "main": "./dist/ts2fable.js",
   "bin": {
-    "ts2fable": "./dist/ts2fable.js"
+    "ts2fable-json-export": "./dist/ts2fable.js"
   },
-  "name": "ts2fable",
-  "version": "0.0.0",
+  "name": "ts2fable-json-export",
+  "version": "0.0.1",
   "description": "TypeScript definition files parser for fable-compiler",
   "scripts": {
     "__postinstall": "node ./node_modules/vscode/bin/install",

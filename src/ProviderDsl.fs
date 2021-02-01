@@ -12,106 +12,19 @@ open System
 open Microsoft.FSharp.Reflection
 open Microsoft.FSharp.Quotations
 open Microsoft.FSharp.Quotations.Patterns
-
-type ErasedType =
-    | Any
-    | Bool
-    | Int
-    | Float
-    | String
-    | Array of ErasedType
-    | Option of ErasedType
-    | Custom of System.Type
+open Transform
 
 
-let mapErasedType = function
-    | Any -> typeof<obj>
-    | Bool -> typeof<bool>
-    | Int -> typeof<int>
-    | Float -> typeof<float>
-    | String -> typeof<string>
-    | Array t -> (mapErasedType t).MakeArrayType()
-    | Option t -> typedefof<Option<obj>>.MakeGenericType(mapErasedType t)
-    | Custom t -> t
 
-let makeImportProperty(name: string, type': System.Type, path: string) =
-    ProvidedProperty(name, type',false, isStatic = true, getterCode = (fun args -> <@@ Fable.Core.JsInterop.import name path @@>))
+let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, isErased : bool) =
+    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = isErased)
+    root
 
-let makeImportAllProperty(name: string, type': System.Type, path: string) =
-    ProvidedProperty(name, type',false, isStatic = true, getterCode = (fun args -> <@@ Fable.Core.JsInterop.importAll path @@>))
-
-let makeProperty(name: string, type': System.Type, isAbstract: bool) = 
-    ProvidedProperty(name, type', isAbstract)
-
-let makeTypeWithMembers (name: string, isInterface: bool, members: #MemberInfo list) =
-    let t = ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = false, isInterface = isInterface)
-    
-    t.AddMembers(members)
-    t
-
-let makeImplementingType(name:string, type': System.Type) =
-    ProvidedTypeDefinition(name, baseType = Some type', hideObjectMethods = true, IsErased = true, isInterface = false)
-
-let makeType(name:string, isInterface:bool) =
-    ProvidedTypeDefinition(name, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true, isInterface = isInterface)
-
-let makeImportMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        false,
-        (fun args ->
-                <@@ 
-                    let x  : Fable.Core.JsInterop.JsFunc = Fable.Core.JsInterop.import name path 
-                    x.Invoke("test")
-                @@> 
-            ),
-        isStatic = isStatic
-    )
-
-let makeJsNativeMethod (name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool) =
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        false,
-        (fun args -> <@@ Fable.Core.Util.jsNative @@>),
-        isStatic = isStatic
-    )
-
-let makeImportDefaultMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        false,
-        (fun args -> <@@ Fable.Core.JsInterop.importAll path @@>),
-        isStatic = isStatic
-    )
-
-
-//let inline boxTyped (expr: Expr) = if expr.Type.IsAssignableFrom(typeof<float>) then <@ box(%%expr:float) @>
-//                                   elif expr.Type.IsAssignableFrom(typeof<string>) then <@ box(%%expr:string) @>
-//                                   else failwith "Type not supported yet"
-
-//// this was previously completely inline                                   
-//let inline exprAsFnArgs (args: Expr list) = 
-//                    args
-//                    |> List.rev
-//                    |> List.map(fun arg -> boxTyped arg )
-//                    |> List.fold (fun state e -> <@ %e::%state @>) <@ [] @>
-
-//let inline invokeFableFn (path: string) = fun (args: Expr list) -> <@@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(%(exprAsFnArgs args) |> List.toArray) @@>
-
-// this should be further optimize
-// todo: explain why
 let inline invokeFableObjFn (libVersion:string, paramNames: string list) = fun (args: Expr list) -> 
-        let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
-                 
-        <@@ 
-            (Fable.Core.JsInterop.import "createObj" libVersion : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs |> Array.toList |> List.mapi(fun i v -> box (paramNames.[i], v)))
-        @@>
+    let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs))             
+    <@@ 
+        (Fable.Core.JsInterop.import "createObj" libVersion : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs |> Array.toList |> List.mapi(fun i v -> box (paramNames.[i], v)))
+    @@>
 let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list) -> 
     let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
     if selector = "*" then 
@@ -120,30 +33,13 @@ let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list)
         <@@ (Fable.Core.JsInterop.importDefault path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs)  @@>
     else 
         <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs) @@>
-    //let first = Expr.Cast<Fable.Core.U2<_,_>> args.[0]
-    //let second = Expr.Cast<obj> args.[1]
-    //let third = Expr.Cast<Fable.Core.U2<_,_>> args.[2]
-    
-    //let u2Type = args.[0].Type
-    //let argTypes = u2Type.GenericTypeArguments 
-    
-    //let tdo = typedefof<Fable.Core.U2<_,_>>
-    //let u2 = tdo.MakeGenericType(argTypes.[0],argTypes.[1]) // unpack
-    //let coerced = Expr.Coerce(args.[0], typeof<obj>) 
 
-    //let arg = Var.Global("first", u2)
-    //let e = Expr.Lambda(arg, args.[0])
+let makeCtor(fableLibVersion, args) =
+    ProvidedConstructor(args, 
+        invokeFableObjFn(fableLibVersion, args |> List.map(fun n -> n.Name))
+    )
 
-    //let whatIsIt = match args.[0] with 
-    //              | NewUnionCase(at,_) -> at.Name
-    //              | _ -> "Nope"
-    //let allArgs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>,nargs))
-    ////Expr.va
-    ////<@@ sprintf "%A" (wrap(%%args.[0])) @@>
-    //<@@ (Fable.Core.JsInterop.importDefault path : Fable.Core.JsInterop.JsFunc).Invoke(%%allArgs)  @@>
-   
-
-let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
+let makeImportMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
     ProvidedMethod(
         name, 
         params',
@@ -152,81 +48,3 @@ let makeImportAllMethod(name: string, params': ProvidedParameter list, returnTyp
         invokeFableFn(path, selector),
         isStatic = isStatic
     )
-
-
-//let makeImportAllMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string) =
-//    ProvidedMethod(
-//        name, 
-//        params',
-//        returnType,
-//        false,
-//        (fun args -> 
-//                    let fnArgs = exprAsFnArgs args
-//                    <@@     
-                        
-//                        let data = Fable.Core.JsInterop.toPlainJsObj  (%fnArgs |> List.toArray)
-                            
-//                        //let args = (%arg)()
-//                        //let inv : Fable.Core.JsInterop.JsFunc = (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc)
-//                        //inv.Invoke(test)
-//                        (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke(data)
-//                     @@>
-//                    //let x = (%%args:obj[]).[i]
-//                    //let f = 
-//                    //     (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke((%%args.[0]:obj)) 
-
-                     
-                 
-//                    //<@@ 
-//                    //    let x = <@@ [for arg in args do (%%arg)] @@>
-//                    //    printfn "%O" x 
-//                    // @@>
-//                    //let fn = <@ (Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc) @>
-//                    //let y = <@ (%fn : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do  if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float) ]) @>
-//                    //<@@ y @@>
-//                    //   [ 1 .. 4 ] |> List.fold (fun st n -> <@ n + %st @>) <@ 0 @>
-//                    //let args = args 
-//                    //           |> List.map(fun arg -> 
-//                    //                if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg: string)
-//                    //                elif arg.Type.IsAssignableFrom(typeof<float>) then box (%%arg: float)
-//                    //                else box (%%arg:obj))
-//                    //let y = args |> List.fold (fun f n -> <@ n::%f @>) <@ [] @>
-//                    //<@@
-//                    //let x = [for arg in args do  if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float) ] 
-//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke() @@>
-//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float)])
-//                    //(Fable.Core.JsInterop.importAll path : Fable.Core.JsInterop.JsFunc).Invoke([for arg in args do if arg.Type.IsAssignableFrom(typeof<string>) then box (%%arg:string) else box (%%arg:float)])
-               
-
-//                //x.Invoke("Test",10.0,"Test")
-//           // @@>
-//          ),
-//        isStatic = isStatic
-//    )
-
-let makeImportAllConstructor(path: string) = 
-     ProvidedConstructor([], (fun args -> <@@ Fable.Core.JsInterop.importAll path @@>))
-
-let makeNoInvokeMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool) = 
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        true,
-        isStatic = isStatic
-    )
-
-let makeDumbMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool) = 
-    ProvidedMethod(
-        name, 
-        params',
-        returnType,
-        false,
-        (fun args -> <@@ "The object data" :> obj @@>),
-        isStatic = isStatic
-    )
-
-let makeRootType(assembly: Assembly, nameSpace: string, typeName: string, members: #MemberInfo list) =
-    let root = ProvidedTypeDefinition(assembly, nameSpace, typeName, baseType = Some typeof<obj>, hideObjectMethods = true, IsErased = true)
-    root.AddMembers members
-    root

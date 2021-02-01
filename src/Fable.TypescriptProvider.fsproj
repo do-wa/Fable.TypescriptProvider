@@ -11,11 +11,13 @@
     <Compile Include="Fable.TypescriptProvider.fs" />
   </ItemGroup>
 
-  <ItemGroup />
-
   <ItemGroup>
     <PackageReference Include="Chiron" Version="6.3.1" />
     <PackageReference Include="Fable.Core" Version="3.2.0" />
+    <PackageReference Include="Fable.React" Version="7.2.0" />
+    <PackageReference Include="Feliz" Version="1.29.0">
+      <IncludeAssets></IncludeAssets>
+    </PackageReference>
     <PackageReference Include="FSharp.Compiler.Service" Version="38.0.0" />
     <PackageReference Include="Microsoft.FSharpLu.Json" Version="0.11.6">
       <IncludeAssets></IncludeAssets>
@@ -24,6 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\Transform\Transform.fsproj" />
     <ProjectReference Include="ts2fable-master\src\ts2fable.fsproj" />
   </ItemGroup>
 
