@@ -1,4 +1,5 @@
-﻿// Learn more about F# at http://docs.microsoft.com/dotnet/fsharp
+﻿// THIS PROJECT IS JUST FOR DEBUGGING PURPOSES
+// NOTHING TO SEE HERE!
 
 open System
 open Transform
@@ -8,12 +9,15 @@ let awesomebutton = """{"Namespace":"react-awesome-button.6.5.1","Opens":["Syste
 
 [<EntryPoint>]
 let main argv =
-    let fsFile = Thoth.Json.Net.Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> awesomebutton
+    let fsFile = Thoth.Json.Net.Decode.Auto.fromString<ts2fable.Syntax.FsFileOut> leftPadSample
     let t = 
        match fsFile with 
         | Ok fsFile -> 
             let (allTypes, typeMap) = createSimplifiedTypeMap fsFile
             let api = buildApi typeMap |> Seq.toList
+            let (name, types) = match api.Head.Type' with 
+                                | ErasedType.Custom c when c.Name.Contains("IExport") -> api.Head.Name, (c.Properties |> List.map snd)
+                                | c -> api.Head.Name, [c]
             api
         | Error err -> failwith err
     //let test = Transform.toProvidedTypes (ProviderDsl.makeType("root", false)) t
