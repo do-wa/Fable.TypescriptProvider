@@ -3,7 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio Version 16
 VisualStudioVersion = 16.0.30717.126
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Fable.TypescriptProvider", "Fable.TypescriptProvider.fsproj", "{B2F3CD91-B584-489B-B1DF-291A49B1E1A2}"
+Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "Fable.TypescriptProvider", "TypeProvider\Fable.TypescriptProvider.fsproj", "{B2F3CD91-B584-489B-B1DF-291A49B1E1A2}"
 EndProject
 Project("{6EC3EE1D-3C4E-46DD-8F32-0CC8E7565705}") = "ts2fable", "ts2fable-master\src\ts2fable.fsproj", "{BB7C8D71-64B4-41A6-AD24-FBECBDA36EAE}"
 EndProject

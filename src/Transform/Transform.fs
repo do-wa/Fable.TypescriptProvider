@@ -60,6 +60,7 @@ type ErasedType =
     | Int 
     | Float
     | String 
+    | Unit
     | Array of ErasedType
     | Option of ErasedType
     | Custom of  {| Name: string; Properties: (string * ErasedType) list;|}
@@ -104,6 +105,7 @@ let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
                | "float" -> ErasedType.Float
                | "bool" -> ErasedType.Bool
                | "any" -> ErasedType.Any
+               | "unit" -> ErasedType.Unit
                | "React.ReactNode" -> ErasedType.LibType(LibType.ReactNode, None)
                | _ -> ErasedType.String
     

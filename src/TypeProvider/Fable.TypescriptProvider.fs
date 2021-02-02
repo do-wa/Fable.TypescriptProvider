@@ -44,11 +44,12 @@ module TypescriptProvider =
         let rec findPackageJson (dir: DirectoryInfo) moduleName =
             try 
                 let packagePath = Path.Combine(dir.FullName, sprintf "./node_modules/%s/" moduleName)
+                
                 let packageJsonFile = FileInfo(Path.Combine(packagePath, "./package.json"))
                 if (isNull packageJsonFile) = false && packageJsonFile.Exists then Ok(packageJsonFile.FullName, packagePath)
                 else findPackageJson dir.Parent moduleName
             with 
-            | ex -> Error(sprintf "ExMessage: %s. ModuleName: %s. Dir: %s" ex.Message moduleName dir.FullName)
+            | ex -> Error(sprintf "Hint: Please check if the package is installed! ModuleName: %s. Dir: %s. ExMessage: %s. " moduleName dir.FullName ex.Message)
 
         let packageJsonFile = findPackageJson (DirectoryInfo(resolutionFolder)) moduleName
         match packageJsonFile with 
@@ -79,7 +80,80 @@ module TypescriptProvider =
                 else failwith "Could not load ts2fable Typing Information"
             | None -> failwith "Could not find index dts file"
     
-    
+    let rec mapApiExport root path selector DEV_FABLE_LIB_VER (ex: ApiExport)=
+        let rec mapErasedType (isRoot :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
+                match erased with 
+                | ErasedType.Fn f ->
+                    let returnType = mapErasedType false parent f.ReturnType
+                    let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType false parent t)))   
+                    let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, isRoot, path, selector)
+                    parent.AddMember method
+                    parent :> Type  
+                | ErasedType.ReactComponent rc -> 
+                    let t = ProvidedTypeDefinition(rc.Name, Some typeof<obj>) 
+
+                    let props = match rc.Properties with 
+                                | Some props -> 
+                                    [ProvidedParameter("props", (mapErasedType false t props))]
+                                | None -> []
+                    let ctor = ProviderDsl.makeReactComponent(path, selector, props)
+                    t.AddMember ctor
+                    parent.AddMember t
+                    t :> Type
+                | ErasedType.Custom c -> 
+                    let t = ProvidedTypeDefinition(c.Name, Some typeof<obj>)
+                    let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType false t c)))
+                    let ctor = ProviderDsl.makeCtor(DEV_FABLE_LIB_VER, props)
+                    t.AddMember ctor
+                    parent.AddMember t
+                    t :> Type
+                | ErasedType.Union u ->
+                    let possibleTypes = u |> List.map(fun t -> mapErasedType false parent t)
+                    match possibleTypes.Length with 
+                    | 1 -> possibleTypes.[0]
+                    | o -> 
+                        match o with 
+                        | 2 -> 
+                            let tdo = typedefof<U2<_,_>>
+                            let u2 = tdo.MakeGenericType(possibleTypes |> List.toArray)
+                            u2
+                        | _ -> failwith "Implement more than 2 cases"
+                | ErasedType.Enum(enum) -> 
+                    let enumBaseType = ProvidedTypeDefinition(enum.Name, None)
+                    
+                    match enum.Type with 
+                    | FsEnumCaseType.Numeric ->
+                        enumBaseType.SetEnumUnderlyingType(typeof<float>)
+                        enum.Cases 
+                        |> List.iteri(fun i case -> 
+                            enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Convert.ToDouble (Option.defaultValue (i.ToString()) case.Value)))
+                        )
+                    | FsEnumCaseType.String
+                    | FsEnumCaseType.Unknown ->
+                        enumBaseType.SetEnumUnderlyingType(typeof<string>)
+                        enum.Cases 
+                        |> List.iteri(fun i case -> enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Option.defaultValue (case.Name+i.ToString()) case.Value)))
+                    
+                    enumBaseType :> Type
+                | ErasedType.String -> typeof<string>
+                | ErasedType.Bool -> typeof<bool>
+                | ErasedType.Int -> typeof<int>
+                | ErasedType.Float -> typeof<float>
+                | ErasedType.Array t -> (mapErasedType false parent t).MakeArrayType()
+                | ErasedType.Option o -> typedefof<Option<obj>>.MakeGenericType(mapErasedType false parent o)
+                | ErasedType.Unit -> typeof<unit>
+                | _ -> typeof<string> //parent :> Type
+                
+
+        let types = match ex.Type' with 
+                            | ErasedType.Custom c when c.Name.Contains("IExport") -> (c.Properties)
+                            | c -> [ex.Name, c]
+                            
+       
+        types |> List.iter(fun (n,t) -> mapErasedType true root t |> ignore)
+        //root.AddMember(export)
+       
+        root
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =
@@ -109,73 +183,9 @@ module TypescriptProvider =
                             let DEV_FABLE_LIB_VER = sprintf "./.fable/fable-library.%s/Util.js" DEV_FABLE_LIB_VER
 
                             try 
-                                let rec mapApiExport (ex: ApiExport) =
-                                    let rec mapErasedType (isRoot :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
-                                            match erased with 
-                                            | ErasedType.Fn f ->
-                                                let returnType = mapErasedType false parent f.ReturnType
-                                                let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType false parent t)))
-                                                if isRoot then 
-                                                    let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, isRoot, path, selector)
-                                                    parent.AddMember method
-                                                    parent :> Type
-                                                    
-                                                else failwith "Figure other function out"
-                                            | ErasedType.Custom c -> 
-                                                let t = ProvidedTypeDefinition(c.Name, Some typeof<obj>)
-                                                let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType false t c)))
-                                                let ctor = ProviderDsl.makeCtor(DEV_FABLE_LIB_VER, props)
-                                                t.AddMember ctor
-                                                parent.AddMember t
-                                                t :> Type
-                                            | ErasedType.Union u ->
-                                                let possibleTypes = u |> List.map(fun t -> mapErasedType false parent t)
-                                                match possibleTypes.Length with 
-                                                | 1 -> possibleTypes.[0]
-                                                | o -> 
-                                                    match o with 
-                                                    | 2 -> 
-                                                        let tdo = typedefof<U2<_,_>>
-                                                        let u2 = tdo.MakeGenericType(possibleTypes |> List.toArray)
-                                                        u2
-                                                    | _ -> failwith "Implement more than 2 cases"
-                                            | ErasedType.Enum(enum) -> 
-                                                let enumBaseType = ProvidedTypeDefinition(enum.Name, None)
-                                                
-                                                match enum.Type with 
-                                                | FsEnumCaseType.Numeric ->
-                                                    enumBaseType.SetEnumUnderlyingType(typeof<float>)
-                                                    enum.Cases 
-                                                    |> List.iteri(fun i case -> 
-                                                        enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Convert.ToDouble (Option.defaultValue (i.ToString()) case.Value)))
-                                                    )
-                                                | FsEnumCaseType.String
-                                                | FsEnumCaseType.Unknown ->
-                                                    enumBaseType.SetEnumUnderlyingType(typeof<string>)
-                                                    enum.Cases 
-                                                    |> List.iteri(fun i case -> enumBaseType.AddMember(ProvidedField.Literal(case.Name, enumBaseType, Option.defaultValue (case.Name+i.ToString()) case.Value)))
-                                                
-                                                enumBaseType :> Type
-                                            | ErasedType.String -> typeof<string>
-                                            | ErasedType.Bool -> typeof<bool>
-                                            | ErasedType.Int -> typeof<int>
-                                            | ErasedType.Float -> typeof<float>
-                                            | ErasedType.Array t -> (mapErasedType false parent t).MakeArrayType()
-                                            | ErasedType.Option o -> typedefof<Option<obj>>.MakeGenericType(mapErasedType false parent o)
-                                            | _ -> typeof<string> //parent :> Type
-                                            
-
-                                    let (name, types) = match ex.Type' with 
-                                                        | ErasedType.Custom c when c.Name.Contains("IExport") -> ex.Name, (c.Properties |> List.map snd)
-                                                        | c -> ex.Name, [c]
-                            
-                                    let root = makeRootType(asm, ns, typeName, true)
-                                    let export = ProvidedTypeDefinition(name, Some typeof<obj>)
-                                    types |> List.iter(fun t -> mapErasedType true root t |> ignore)
-                                    root.AddMember(export)
-                                   
-                                    root
-                                let apiExports = api |> Seq.map mapApiExport |> Seq.head // single export definition only atm
+                                let root = makeRootType(asm, ns, typeName, true)
+                                root.AddMember (ProvidedTypeDefinition("NestedTest", Some(typeof<obj>)))
+                                let apiExports = api |> Seq.map (mapApiExport root path selector DEV_FABLE_LIB_VER)  |> Seq.head // single export definition only atm
                                 apiExports
                             with 
                             | ex -> failwith ex.Message

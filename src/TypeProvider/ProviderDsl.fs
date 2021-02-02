@@ -34,9 +34,23 @@ let inline invokeFableFn (path: string, selector:string) = fun (args: Expr list)
     else 
         <@@ (Fable.Core.JsInterop.import selector path : Fable.Core.JsInterop.JsFunc).Invoke(%%qargs) @@>
 
+let inline invokeReactComponentFn (path: string, selector:string) = fun (args: Expr list) -> 
+    let qargs = args |> List.map(fun arg -> Expr.Coerce(arg, typeof<obj>)) |> (fun nargs -> Expr.NewArray(typeof<obj>, nargs)) 
+    if selector = "*" then 
+        <@@ (Fable.Core.JsInterop.import "createElement" "react" : Fable.Core.JsInterop.JsFunc).Invoke([|box (Fable.Core.JsInterop.importAll path)|]) @@>
+    elif selector = "default" then 
+        <@@ (Fable.Core.JsInterop.import "createElement" "react" : Fable.Core.JsInterop.JsFunc).Invoke([|box (Fable.Core.JsInterop.importDefault path) |])  @@>
+    else 
+        <@@ (Fable.Core.JsInterop.import "createElement" "react" : Fable.Core.JsInterop.JsFunc).Invoke(Array.append [|box (Fable.Core.JsInterop.import selector path)|] %%qargs) @@>
+
 let makeCtor(fableLibVersion, args) =
     ProvidedConstructor(args, 
         invokeFableObjFn(fableLibVersion, args |> List.map(fun n -> n.Name))
+    )
+
+let inline makeReactComponent(path, selector, args) =
+    ProvidedConstructor(args, 
+        invokeReactComponentFn(path, selector)
     )
 
 let makeImportMethod(name: string, params': ProvidedParameter list, returnType: System.Type, isStatic: bool, path: string, selector: string) =
