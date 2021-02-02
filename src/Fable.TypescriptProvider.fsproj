@@ -26,7 +26,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\Transform\Transform.fsproj" />
+    <ProjectReference Include="Transform\Transform.fsproj" />
     <ProjectReference Include="ts2fable-master\src\ts2fable.fsproj" />
   </ItemGroup>
 

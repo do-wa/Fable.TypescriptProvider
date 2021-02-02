@@ -9,7 +9,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\src\ts2fable-master\src\ts2fable.fsproj" />
+    <ProjectReference Include="..\ts2fable-master\src\ts2fable.fsproj" />
   </ItemGroup>
 
 </Project>

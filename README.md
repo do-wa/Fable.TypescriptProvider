@@ -37,7 +37,7 @@ You can start by using the "sample/Simple" example. The TypeProvider assembly wa
 
 
 ```fsharp
-type LeftPad = Fable.TypescriptTypeProvider.Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
+type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
 
 let paddedString = LeftPad.leftPad(U2.Case1 "Test", 0.0, None)
 ```
@@ -53,10 +53,6 @@ import left$002Dpad from "left-pad";
 export const padded = left$002Dpad("Test", 0, (void 0));
 
 ```
-
-if you like moving images more:
-
-![Alt Text](/example1.gif)
 
 ## Using other people's work
 

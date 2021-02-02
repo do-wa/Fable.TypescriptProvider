@@ -85,18 +85,8 @@ module TypescriptProvider =
     type public TypescriptProvider (config : TypeProviderConfig) as this =
         inherit TypeProviderForNamespaces (config)
         let asm = System.Reflection.Assembly.GetExecutingAssembly()
-        let ns = "Fable.TypescriptTypeProvider"
+        let ns = "Fable.TypescriptProvider"
         
-        
-        do System.AppDomain.CurrentDomain.add_AssemblyResolve(ResolveEventHandler(fun _ args ->
-            let expectedName = (System.Reflection.AssemblyName(args.Name)).Name + ".dll"
-            let asmPath = 
-                config.ReferencedAssemblies
-                |> Seq.tryFind (fun asmPath -> IO.Path.GetFileName(asmPath) = expectedName)
-            match asmPath with
-            | Some f -> Reflection.Assembly.LoadFrom f
-            | None -> null))
-
         let staticParams = [
                 ProvidedStaticParameter("selector",typeof<string>)
                 ProvidedStaticParameter("path",typeof<string>)
