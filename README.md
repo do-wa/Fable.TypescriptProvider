@@ -40,7 +40,7 @@ You can start by using the "sample/Simple" example. The TypeProvider assembly wa
 ```fsharp
 open Fable.TypescriptProvider
 
-type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
+type LeftPad = Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
 
 let paddedString = LeftPad.leftPad(U2.Case1 "Test", 0.0, None)
 ```
