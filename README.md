@@ -41,7 +41,7 @@ For more complex examples check out the "tests/TestGallery" App
 ```fsharp
 open Fable.TypescriptProvider
 
-type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad">
+type LeftPad = Import<"default", "left-pad">
 
 let paddedString = LeftPad.leftPad(U2.Case1 "Test", 0.0, None)
 ```
