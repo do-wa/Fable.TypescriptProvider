@@ -68,7 +68,7 @@ type ErasedType =
     | Fn of {| Name: string; Parameters: (string * ErasedType) list; ReturnType: ErasedType |}
     | Union of ErasedType list
     | Enum of FsEnum
-    | LibType of LibType * ErasedType option
+    | Library of LibType * ErasedType option
 
 let createSimplifiedTypeMap (file: FsFileOut) =
     let rec collectFromModule (fsModule: FsModule) = seq {
@@ -106,7 +106,7 @@ let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
                | "bool" -> ErasedType.Bool
                | "any" -> ErasedType.Any
                | "unit" -> ErasedType.Unit
-               | "React.ReactNode" -> ErasedType.LibType(LibType.ReactNode, None)
+               | "React.ReactNode" -> ErasedType.Library(LibType.ReactNode, None)
                | _ -> ErasedType.String
     
     | FsType.Interface i ->
@@ -114,7 +114,7 @@ let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
         match inheritsFrom with 
         | Some parent -> 
             match parent with 
-            | LibType(LibType.ReactComponent, prop) -> 
+            | Library(LibType.ReactComponent, prop) -> 
                 ErasedType.ReactComponent({| Name = i.Name; Properties = prop |})
             | _ -> ErasedType.String
         | None ->
@@ -145,7 +145,7 @@ let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
              match g.TypeParameters with 
              | FsType.Mapped(props)::_ -> 
                  match findByName typeMap props.Name with 
-                 | Some t ->  ErasedType.LibType(LibType.ReactComponent, Some(getTypeSignature typeMap t))
+                 | Some t ->  ErasedType.Library(LibType.ReactComponent, Some(getTypeSignature typeMap t))
                  | _ -> failwith "could not find property type"
              | _ -> failwith "Non React Generics not supported yet"
         | t -> getTypeSignature typeMap t

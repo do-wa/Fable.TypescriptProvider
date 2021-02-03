@@ -23,16 +23,22 @@ let leftPadShowCase() =
     ]
 
 type AwesomeButtonModule = Import<"AwesomeButton", "react-awesome-button", fableVersion>
-let AwesomeButton props : Fable.React.ReactElement = unbox (AwesomeButtonModule.AwesomeButton(props))
-let styling = importDefault "react-awesome-button/src/styles/styles.scss"
-let awesomeButtonShowcase() =
-    let props = AwesomeButtonModule.AwesomeButton.AwesomeButtonProps(null,false, false,
-                 null,null, styling ,false, null, "", false,
-                 null, null, true, true, "",  "12", null, null
-                 ,  "Awesome!", "To?",null,true)
+
+let AwesomeButton props : Fable.React.ReactElement = unbox AwesomeButtonModule.AwesomeButton props
+type AwesomeButtonProps = AwesomeButtonModule.AwesomeButtonProps
+
+let awesomeButtonStyles = importDefault "react-awesome-button/src/styles/styles.scss";
+[<ReactComponent>]
+let awesomeButtonShowcase() = 
     Html.div [
         prop.children [
-            AwesomeButton(props)
+            AwesomeButton [
+                AwesomeButtonProps.cssModule awesomeButtonStyles
+                AwesomeButtonProps.type' "primary"
+                unbox (prop.children [
+                    Html.text "Test"
+                ])
+            ]
         ]
     ]
 

@@ -35,6 +35,7 @@ this is not a nuget package (yet)
 
 You can start by using the "sample/Simple" example. The TypeProvider assembly was added manually.
 
+### Normal NPM Packages
 
 ```fsharp
 type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
@@ -53,6 +54,38 @@ import left$002Dpad from "left-pad";
 export const padded = left$002Dpad("Test", 0, (void 0));
 
 ```
+
+### React Components
+
+```fsharp
+
+// create typings for 'react-awesome-button'
+type AwesomeButtonModule = Import<"AwesomeButton", "react-awesome-button", fableVersion>
+
+// write minimal wrapper to allow usage in fable. You only need to define the ReactElement type as return type.
+// Currently the returned type is obj (due to current tp limitation or missing knowledge to solve this problem)
+let AwesomeButton props : Fable.React.ReactElement = unbox AwesomeButtonModule.AwesomeButton props
+// Type Alias for Properties for easier access
+type AwesomeButtonProps = AwesomeButtonModule.AwesomeButtonProps
+
+// 'react-awesome-button' specific css import
+let awesomeButtonStyles = importDefault "react-awesome-button/src/styles/styles.scss";
+
+let SomeOtherComponent () = 
+    AwesomeButton [
+                AwesomeButtonProps.cssModule awesomeButtonStyles
+                AwesomeButtonProps.type' "primary"
+                // this allows the usage of custom props or established props from feliz
+                // unbox is necessary at the moment (maybe it stays that way)
+                unbox (prop.children [
+                    Html.text "Test"
+                ])
+    ]
+        
+    
+
+```
+
 
 ## Using other people's work
 

@@ -80,26 +80,49 @@ module TypescriptProvider =
                 else failwith "Could not load ts2fable Typing Information"
             | None -> failwith "Could not find index dts file"
     
+    let normalizePropName = function 
+                        | "``type``" -> "type", "type'"
+                        | "type" -> "type", "type'"
+                        | "to" -> "to", "to'"
+                        | s -> s, s
+                            
+
     let rec mapApiExport root path selector DEV_FABLE_LIB_VER (ex: ApiExport)=
-        let rec mapErasedType (isRoot :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
+        let rec mapErasedType (attachStatic :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
                 match erased with 
                 | ErasedType.Fn f ->
                     let returnType = mapErasedType false parent f.ReturnType
                     let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType false parent t)))   
-                    let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, isRoot, path, selector)
+                    let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, attachStatic, path, selector)
                     parent.AddMember method
                     parent :> Type  
                 | ErasedType.ReactComponent rc -> 
-                    let t = ProvidedTypeDefinition(rc.Name, Some typeof<obj>) 
 
-                    let props = match rc.Properties with 
-                                | Some props -> 
-                                    [ProvidedParameter("props", (mapErasedType false t props))]
-                                | None -> []
-                    let ctor = ProviderDsl.makeReactComponent(path, selector, props)
-                    t.AddMember ctor
-                    parent.AddMember t
-                    t :> Type
+                    let propFacade = ProvidedTypeDefinition(sprintf "I%sProps" rc.Name, Some(typeof<obj>), isInterface = true)
+                    let listType = typedefof<list<_>>
+                    let propTypeAsList = listType.MakeGenericType(propFacade)
+                    parent.AddMember(propFacade)
+
+
+                    let reactComponent = makeReactComponent(DEV_FABLE_LIB_VER, rc.Name, propTypeAsList, typeof<obj>, true, path, selector)
+                    parent.AddMember(reactComponent)
+                    
+                    let (propertyBuilderType, props) = 
+                                              match rc.Properties with 
+                                              | Some(ErasedType.Custom c) -> ProvidedTypeDefinition(c.Name, Some(typeof<obj>)), c.Properties
+                                              | Some _ -> failwith "Expected Custom type as property"
+                                              | None -> ProvidedTypeDefinition(sprintf "%sProps" rc.Name, Some(typeof<obj>)), []
+                    parent.AddMember(propertyBuilderType)
+
+                    let propertyBuilderFns = props 
+                                             |> List.map(fun (n,t) -> 
+                                                    let (jsName, usageName) = normalizePropName n
+                                                    ProvidedMethod(usageName, [ProvidedParameter("value", (mapErasedType true  propertyBuilderType t))], propFacade, false, makeTuple(jsName), true)
+                                                )
+
+                    propertyBuilderType.AddMembers(propertyBuilderFns)
+
+                    propertyBuilderType :> Type
                 | ErasedType.Custom c -> 
                     let t = ProvidedTypeDefinition(c.Name, Some typeof<obj>)
                     let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType false t c)))
