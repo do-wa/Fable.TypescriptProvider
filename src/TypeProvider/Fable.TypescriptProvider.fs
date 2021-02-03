@@ -34,6 +34,18 @@ module TypescriptProvider =
             p.WaitForExit(10000)
         with 
         | ex -> failwith (sprintf "running ts2fable failed.Looking for %s at %s. Exception: %s" packageName packageName ex.Message)
+    
+    let rec determineFableVersion (dir: DirectoryInfo) =
+        try 
+            let toolsConfig = Path.Combine(dir.FullName, sprintf "./.config/dotnet-tools.json")
+            let toolsConfigFileInfo = FileInfo(toolsConfig)
+            if (isNull toolsConfigFileInfo) = false && toolsConfigFileInfo.Exists 
+            then
+                let configContent = Newtonsoft.Json.Linq.JObject.Parse(File.ReadAllText(toolsConfig))
+                configContent.SelectToken("$.tools.fable.version").ToString()
+            else determineFableVersion dir.Parent
+        with 
+        | ex -> failwith (sprintf "Could not determine Fable Version. Please make sure that fable is installed as a local dotnet tool. Message: %s" ex.Message)
 
     let loadMainDtsFile resolutionFolder moduleName = 
         // find package.json
@@ -87,12 +99,12 @@ module TypescriptProvider =
                         | s -> s, s
                             
 
-    let rec mapApiExport root path selector DEV_FABLE_LIB_VER (ex: ApiExport)=
-        let rec mapErasedType (attachStatic :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
+    let rec mapApiExport root path (selector:string) fableVersion (ex: ApiExport)=
+        let rec mapErasedType selector (attachStatic :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
                 match erased with 
                 | ErasedType.Fn f ->
-                    let returnType = mapErasedType false parent f.ReturnType
-                    let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType false parent t)))   
+                    let returnType = mapErasedType selector false parent f.ReturnType
+                    let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType selector false parent t)))   
                     let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, attachStatic, path, selector)
                     parent.AddMember method
                     parent :> Type  
@@ -104,7 +116,7 @@ module TypescriptProvider =
                     parent.AddMember(propFacade)
 
 
-                    let reactComponent = makeReactComponent(DEV_FABLE_LIB_VER, rc.Name, propTypeAsList, typeof<obj>, true, path, selector)
+                    let reactComponent = makeReactComponent(fableVersion, rc.Name, propTypeAsList, typeof<obj>, true, path, selector)
                     parent.AddMember(reactComponent)
                     
                     let (propertyBuilderType, props) = 
@@ -117,7 +129,7 @@ module TypescriptProvider =
                     let propertyBuilderFns = props 
                                              |> List.map(fun (n,t) -> 
                                                     let (jsName, usageName) = normalizePropName n
-                                                    ProvidedMethod(usageName, [ProvidedParameter("value", (mapErasedType true  propertyBuilderType t))], propFacade, false, makeTuple(jsName), true)
+                                                    ProvidedMethod(usageName, [ProvidedParameter("value", (mapErasedType selector true  propertyBuilderType t))], propFacade, false, makeTuple(jsName), true)
                                                 )
 
                     propertyBuilderType.AddMembers(propertyBuilderFns)
@@ -125,13 +137,13 @@ module TypescriptProvider =
                     propertyBuilderType :> Type
                 | ErasedType.Custom c -> 
                     let t = ProvidedTypeDefinition(c.Name, Some typeof<obj>)
-                    let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType false t c)))
-                    let ctor = ProviderDsl.makeCtor(DEV_FABLE_LIB_VER, props)
+                    let props = c.Properties |> List.map(fun (n,c) -> ProvidedParameter(n, (mapErasedType selector false t c)))
+                    let ctor = ProviderDsl.makeCtor(fableVersion, props)
                     t.AddMember ctor
                     parent.AddMember t
                     t :> Type
                 | ErasedType.Union u ->
-                    let possibleTypes = u |> List.map(fun t -> mapErasedType false parent t)
+                    let possibleTypes = u |> List.map(fun t -> mapErasedType selector false parent t)
                     match possibleTypes.Length with 
                     | 1 -> possibleTypes.[0]
                     | o -> 
@@ -159,11 +171,12 @@ module TypescriptProvider =
                     
                     enumBaseType :> Type
                 | ErasedType.String -> typeof<string>
+                | ErasedType.Obj -> typeof<obj>
                 | ErasedType.Bool -> typeof<bool>
                 | ErasedType.Int -> typeof<int>
                 | ErasedType.Float -> typeof<float>
-                | ErasedType.Array t -> (mapErasedType false parent t).MakeArrayType()
-                | ErasedType.Option o -> typedefof<Option<obj>>.MakeGenericType(mapErasedType false parent o)
+                | ErasedType.Array t -> (mapErasedType selector false parent t).MakeArrayType()
+                | ErasedType.Option o -> typedefof<Option<obj>>.MakeGenericType(mapErasedType selector false parent o)
                 | ErasedType.Unit -> typeof<unit>
                 | _ -> typeof<string> //parent :> Type
                 
@@ -172,11 +185,18 @@ module TypescriptProvider =
                             | ErasedType.Custom c when c.Name.Contains("IExport") -> (c.Properties)
                             | c -> [ex.Name, c]
                             
-       
-        types |> List.iter(fun (n,t) -> mapErasedType true root t |> ignore)
-        //root.AddMember(export)
-       
-        root
+        let selectors = selector.Split(',') |> Array.map(fun s -> s.Trim()) |> Array.toList
+        types 
+        |> List.choose(fun (n,t) -> 
+            match selectors with 
+            | "default"::[] -> Some("default", t)
+            | "*"::[] -> Some("*", t)
+            | s when s |> List.contains n -> Some(n, t)
+            | _ -> None
+        )
+        |> List.iter(fun (selector, t) -> mapErasedType selector true root t |> ignore)
+        
+        
 
     [<TypeProvider>]
     type public TypescriptProvider (config : TypeProviderConfig) as this =
@@ -187,7 +207,6 @@ module TypescriptProvider =
         let staticParams = [
                 ProvidedStaticParameter("selector",typeof<string>)
                 ProvidedStaticParameter("path",typeof<string>)
-                ProvidedStaticParameter("DEV_FABLE_LIB_VER",typeof<string>)
             ]
         let generator = ProvidedTypeDefinition(asm, ns, "Import", Some typeof<obj>, isErased = true)
 
@@ -195,21 +214,18 @@ module TypescriptProvider =
             parameters = staticParams,
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
-                    | [| :? string as selector; :? string as path ; :? string as DEV_FABLE_LIB_VER|] ->
+                    | [| :? string as selector; :? string as path |] ->
                         match loadMainDtsFile config.ResolutionFolder path with
                         | Error err -> failwith err
                         | Ok tsFile -> 
                             let (_, typeMap) = Transform.createSimplifiedTypeMap tsFile
                             let api = Transform.buildApi typeMap
-
-                            // only temporary
-                            let DEV_FABLE_LIB_VER = sprintf "./.fable/fable-library.%s/Util.js" DEV_FABLE_LIB_VER
-
+                            let fableVersion = determineFableVersion (DirectoryInfo(config.ResolutionFolder))
+                            let fableLibVer = sprintf "./.fable/fable-library.%s/Util.js" fableVersion
                             try 
                                 let root = makeRootType(asm, ns, typeName, true)
-                                root.AddMember (ProvidedTypeDefinition("NestedTest", Some(typeof<obj>)))
-                                let apiExports = api |> Seq.map (mapApiExport root path selector DEV_FABLE_LIB_VER)  |> Seq.head // single export definition only atm
-                                apiExports
+                                api  |> Seq.iter (mapApiExport root path selector fableLibVer) 
+                                root
                             with 
                             | ex -> failwith ex.Message
                     | _ -> failwith "unexpected parameter values"

@@ -13,7 +13,7 @@ type ShowCaseProps = {
 }
 
 
-type LeftPad = Import<"default", "left-pad", fableVersion>
+type LeftPad = Import<"default", "left-pad">
 [<ReactComponent>]
 let leftPadShowCase() = 
     Html.div [
@@ -22,12 +22,14 @@ let leftPadShowCase() =
         ]
     ]
 
-type AwesomeButtonModule = Import<"AwesomeButton", "react-awesome-button", fableVersion>
+
+type AwesomeButtonModule = Import<"AwesomeButton, AwesomeButtonProgress", "react-awesome-button">
 
 let AwesomeButton props : Fable.React.ReactElement = unbox AwesomeButtonModule.AwesomeButton props
 type AwesomeButtonProps = AwesomeButtonModule.AwesomeButtonProps
 
-let awesomeButtonStyles = importDefault "react-awesome-button/src/styles/styles.scss";
+let awesomeButtonStyles : obj = importDefault "react-awesome-button/src/styles/styles.scss";
+
 [<ReactComponent>]
 let awesomeButtonShowcase() = 
     Html.div [
@@ -36,7 +38,7 @@ let awesomeButtonShowcase() =
                 AwesomeButtonProps.cssModule awesomeButtonStyles
                 AwesomeButtonProps.type' "primary"
                 unbox (prop.children [
-                    Html.text "Test"
+                    Html.text "Who likes Typeprovider? "
                 ])
             ]
         ]

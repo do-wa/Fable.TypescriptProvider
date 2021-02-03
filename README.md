@@ -34,13 +34,14 @@ this is not a nuget package (yet)
 ## Usage
 
 You can start by using the "sample/Simple" example. The TypeProvider assembly was added manually.
+For more complex examples check out the "tests/TestGallery" App
 
 ### Normal NPM Packages
 
 ```fsharp
 open Fable.TypescriptProvider
 
-type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad", DEV_FABLE_LIB_VER = "3.1.1">
+type LeftPad = Fable.TypescriptProvider.Import<"default", "left-pad">
 
 let paddedString = LeftPad.leftPad(U2.Case1 "Test", 0.0, None)
 ```
@@ -63,7 +64,7 @@ export const padded = left$002Dpad("Test", 0, (void 0));
 open Fable.TypescriptProvider
 
 // create typings for 'react-awesome-button'
-type AwesomeButtonModule = Import<"AwesomeButton", "react-awesome-button", fableVersion>
+type AwesomeButtonModule = Import<"AwesomeButton", "react-awesome-button">
 
 // write minimal wrapper to allow usage in fable. You only need to define the ReactElement type 
 // as return type and unbox the TP type
