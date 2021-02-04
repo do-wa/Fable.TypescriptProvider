@@ -97,7 +97,7 @@ let SomeOtherComponent () =
 This is work done primarily by looking at the Fable.JsonProvider for guidance and looking at some ts2fable stuff and smashing those things together. So other people did the heavy lifting! I guess its safe to say that most of this work was done by the [Fable Compiler](https://github.com/fable-compiler) Team (esp. alfonsogarciacaro)
 
 ---
-## Why is think is project is necessary
+## Why I think this project is necessary
 
 No matter which compile 2 js language you use, none (I know of) can interop with javascript (i mean typescript) without maintaining custom interface definitions or generating some types which have to be part of your build pipeline. It should be easier to just use this vast ecosystem of proven libraries and leverage the ecosystem with ease.
 
