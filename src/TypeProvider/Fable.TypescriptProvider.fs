@@ -95,19 +95,38 @@ module TypescriptProvider =
     let normalizePropName = function 
                         | "``type``" -> "type", "type'"
                         | "type" -> "type", "type'"
+                        | "``to``" -> "to", "to'"
                         | "to" -> "to", "to'"
                         | s -> s, s
                             
 
     let rec mapApiExport root path (selector:string) fableVersion (ex: ApiExport)=
+        
+            
         let rec mapErasedType selector (attachStatic :bool) (parent: ProvidedTypeDefinition) (erased: ErasedType) =
                 match erased with 
                 | ErasedType.Fn f ->
                     let returnType = mapErasedType selector false parent f.ReturnType
-                    let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType selector false parent t)))   
-                    let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, attachStatic, path, selector)
-                    parent.AddMember method
-                    parent :> Type  
+                    if attachStatic
+                    then                    
+                        let params' = f.Parameters |> List.map(fun (n,t) -> ProvidedParameter(n, (mapErasedType selector false parent t)))   
+                        let method = ProviderDsl.makeImportMethod(f.Name, params', returnType, attachStatic, path, selector)
+                        parent.AddMember method
+                        parent :> Type  
+                    else 
+                       
+                        let input = f.Parameters 
+                                      |> List.map(fun (_,t) -> mapErasedType selector false parent t)
+                                      |> fun t -> if t.Length = 0 
+                                                  then 
+                                                       typeof<unit>
+                                                  elif t.Length = 1 
+                                                  then 
+                                                      t.[0]
+                                                  else FSharp.Reflection.FSharpType.MakeTupleType(t |> List.toArray)
+
+                        let t = FSharp.Reflection.FSharpType.MakeFunctionType(input,returnType)
+                        t
                 | ErasedType.ReactComponent rc -> 
 
                     let propFacade = ProvidedTypeDefinition(sprintf "I%sProps" rc.Name, Some(typeof<obj>), isInterface = true)
@@ -129,7 +148,7 @@ module TypescriptProvider =
                     let propertyBuilderFns = props 
                                              |> List.map(fun (n,t) -> 
                                                     let (jsName, usageName) = normalizePropName n
-                                                    ProvidedMethod(usageName, [ProvidedParameter("value", (mapErasedType selector true  propertyBuilderType t))], propFacade, false, makeTuple(jsName), true)
+                                                    ProvidedMethod(usageName, [ProvidedParameter("value", (mapErasedType selector false  propertyBuilderType t))], propFacade, false, makeTuple(jsName), true)
                                                 )
 
                     propertyBuilderType.AddMembers(propertyBuilderFns)

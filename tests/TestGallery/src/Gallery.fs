@@ -6,7 +6,9 @@ let fableVersion = "3.0.1"
 open Feliz
 open Fable.TypescriptProvider
 open Fable.Core 
+
 open Fable.Core.JsInterop
+
 type ShowCaseProps = {
     moduleName: string
     showCase: Fable.React.ReactElement
@@ -32,9 +34,11 @@ let awesomeButtonStyles : obj = importDefault "react-awesome-button/src/styles/s
 
 [<ReactComponent>]
 let awesomeButtonShowcase() = 
+    let onPress = (fun (x:obj) -> x) 
     Html.div [
         prop.children [
             AwesomeButton [
+                AwesomeButtonProps.onPress(fun () -> Browser.Dom.window.alert(sprintf "On %s, you liked some TypeProvider!" (System.DateTime.Now.ToString())))
                 AwesomeButtonProps.cssModule awesomeButtonStyles
                 AwesomeButtonProps.type' "primary"
                 unbox (prop.children [
