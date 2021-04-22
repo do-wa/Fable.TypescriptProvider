@@ -71,7 +71,7 @@ type ErasedType =
     | Enum of FsEnum
     | Library of LibType * ErasedType option
 
-let createSimplifiedTypeMap (file: FsFileOut) =
+let createSimplifiedTypeMap (file: FsFileOut list) =
     let rec collectFromModule (fsModule: FsModule) = seq {
                 for f in fsModule.Types do
                     match f with 
@@ -79,7 +79,8 @@ let createSimplifiedTypeMap (file: FsFileOut) =
                     | t -> yield fsModule.Name, t
             }
        
-    let types = file.Files 
+    let types = file
+                |> Seq.collect(fun f -> f.Files)
                 |> Seq.collect(fun m -> m.Modules |> Seq.collect collectFromModule)
 
     types |> Seq.map(fun(_,t) -> t) |> Seq.toList,
@@ -90,7 +91,7 @@ let createSimplifiedTypeMap (file: FsFileOut) =
         | false, _ -> 
             acc.[(sprintf "%s.%s" moduleName typeName)] <- type'
             acc
-        | true, _ -> failwith "Duplicate Type in Module") (Dictionary<string, FsType>())
+        | true, _ -> acc) (Dictionary<string, FsType>())
 
 
 let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
@@ -160,10 +161,11 @@ let getTypeSignature (typeMap: Dictionary<string, FsType>) (toResolve: FsType) =
         ErasedType.Union(possibleTypes)
     | FsType.Enum enum -> 
         ErasedType.Enum enum
-    | _ -> failwith "oopsie"
+    
+    | _ ->  ErasedType.Custom({| Name = "NOT_RESOLVED"; Properties = [] |})
 
-let private find (types: FsType seq) (matcher: FsType -> 'a option) = 
-    types |> Seq.choose matcher
+let private find (types: FsType seq) (matcher: FsType -> bool) = 
+    types |> Seq.filter matcher
  
 type ApiExport = {
     Name: string
@@ -171,14 +173,24 @@ type ApiExport = {
  }
 
 let buildApi (typeMap: Dictionary<string, FsType>) =
-    let exports = find typeMap.Values (function | FsType.Variable v -> Some v | _ -> None)
-    exports |> Seq.map(fun export ->
-                match export.Type with 
-                | FsType.Mapped m when m.Name.EndsWith("IExports") -> 
-                    match findByName typeMap m.Name with 
-                    | Some t -> { Name = export.Name; Type' = getTypeSignature typeMap t }
-                    | _ -> failwith "Type Unknown"
-                | t -> { Name = export.Name; Type' = getTypeSignature typeMap t }
+    let exports = find typeMap.Values (function | FsType.Variable v -> true | FsType.Interface f -> true | _ -> false)
+    exports |> Seq.choose(fun export ->
+                match export with 
+                | FsType.Variable v ->
+                    match v.Type with
+                    | FsType.Mapped m when m.Name.EndsWith("IExports") -> 
+                        match findByName typeMap m.Name with 
+                        | Some t -> Some{ Name = m.Name; Type' = getTypeSignature typeMap t }
+                        | _ -> failwith "Type Unknown"
+                    | _ -> None
+                | FsType.Interface i ->
+                    match i.Name with 
+                    | name when name.EndsWith("IExports") ->
+                        match findByName typeMap name with 
+                        | Some t -> Some{ Name = name; Type' = getTypeSignature typeMap t }
+                        | _ -> failwith "Type Unknown"
+                    | t -> None
+                | t -> None
             )
     
     

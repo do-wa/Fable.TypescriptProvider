@@ -17,17 +17,29 @@ module TypescriptProvider =
     open ts2fable.Syntax
     open Transform
    
-    let runTs2FableModule packageName (dtsFile: string) out = 
+    open System.Security.Cryptography
+    open System.Text
+    
+    let md5 (data : byte array) : string =
+        use md5 = MD5.Create()
+        (StringBuilder(), md5.ComputeHash(data))
+        ||> Array.fold (fun sb b -> sb.Append(b.ToString("x2")))
+        |> string
+
+    let runTs2FableModule packageName (dtsFile: string) out (export: string option) = 
         try 
             let p = new Process()
             let psi = new ProcessStartInfo()
+            let exportArg = match export with 
+                            | None -> ""
+                            | Some ex -> sprintf " -e %s" ex
             if System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(Runtime.InteropServices.OSPlatform.Windows)
             then 
                 psi.FileName <- "CMD.exe"
-                psi.Arguments <- sprintf "/C %s \"%s\" \"%s\"" packageName dtsFile out
+                psi.Arguments <- sprintf "/C %s \"%s\" \"%s\"%s" packageName dtsFile out exportArg
             else 
                 psi.FileName <- "/bin/bash"
-                psi.Arguments <- sprintf "%s \"%s\" \"%s\"" packageName dtsFile out
+                psi.Arguments <- sprintf "%s \"%s\" \"%s\"%s" packageName dtsFile out exportArg
             psi.WindowStyle <- ProcessWindowStyle.Hidden
             p.StartInfo <- psi
             p.Start() |> ignore
@@ -47,7 +59,7 @@ module TypescriptProvider =
         with 
         | ex -> failwith (sprintf "Could not determine Fable Version. Please make sure that fable is installed as a local dotnet tool. Message: %s" ex.Message)
 
-    let loadMainDtsFile resolutionFolder moduleName = 
+    let loadMainDtsFile resolutionFolder moduleName (selector:string option) = 
         // find package.json
         // let ts2FableScriptName = "ts2fable.js"
         // this is of course temporary
@@ -81,15 +93,25 @@ module TypescriptProvider =
                                
             match dtsMainFilePath with 
             | Some dtsMainPath -> 
+                let export = selector |> Option.map (fun x -> String.Join(" ", x.Split(',')))
+
                 let dtsPath = Path.Combine(packagePath, dtsMainPath)
-                let outPath = Path.Combine(Path.GetTempPath(), (sprintf "%s.%s.fs" moduleName versionInfo))
-                let genFilePath = sprintf "%s.json" outPath
-                // check if file already exists if not run module
-                if File.Exists(genFilePath) || (runTs2FableModule ts2FableJsonExportGlobalName dtsPath outPath)
-                then 
-                    let fableTypesJson = File.ReadAllText(genFilePath)
-                    Decode.Auto.fromString<ts2fable.Syntax.FsFileOut>fableTypesJson
-                else failwith "Could not load ts2fable Typing Information"
+                
+                let genTypeInfo (ex: string option) =
+                        let outFileName = if ex = None 
+                                          then  (sprintf "%s.%s.fs" moduleName versionInfo)
+                                          else  (sprintf "%s.%s.%s.fs" moduleName (md5 (System.Text.Encoding.ASCII.GetBytes(ex.Value))) versionInfo)
+                        let outPath = Path.Combine(Path.GetTempPath(), outFileName)
+                        let genFilePath = sprintf "%s.json" outPath
+                        if File.Exists(genFilePath) || (runTs2FableModule ts2FableJsonExportGlobalName dtsPath outPath ex)
+                        then 
+                            let fableTypesJson = File.ReadAllText(genFilePath)
+                            Decode.Auto.fromString<ts2fable.Syntax.FsFileOut>fableTypesJson
+                        else failwith "Could not load ts2fable Typing Information"
+                    
+                [genTypeInfo None; genTypeInfo export]
+                |> List.fold(fun acc cur -> cur |> Result.bind(fun c -> acc |> Result.map(fun a -> c::a))) (Ok([]))
+                
             | None -> failwith "Could not find index dts file"
     
     let normalizePropName = function 
@@ -234,7 +256,12 @@ module TypescriptProvider =
             instantiationFunction = (fun typeName pVals ->
                     match pVals with
                     | [| :? string as selector; :? string as path |] ->
-                        match loadMainDtsFile config.ResolutionFolder path with
+                        let ts2fableExportSelector = match selector with 
+                                                     | "default" 
+                                                     | "*" -> None
+                                                     | s -> Some s
+
+                        match loadMainDtsFile config.ResolutionFolder path ts2fableExportSelector with
                         | Error err -> failwith err
                         | Ok tsFile -> 
                             let (_, typeMap) = Transform.createSimplifiedTypeMap tsFile

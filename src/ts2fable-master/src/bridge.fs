@@ -129,6 +129,7 @@ module internal Bridge =
         |> fixTypesHasESKeywords
         |> extractTypesInGlobalModules
         |> addConstructors
+        |> mergeReadAndWriteProperties
         |> removePrivatesFromClasses
         |> fixThis
         |> fixNodeArray
@@ -151,6 +152,8 @@ module internal Bridge =
         // |> addAliasUnionHelpers // disabled for Fable.Core 3.x
         |> removeDuplicateOptionsFromParameters
         |> fixFloatAlias
+        |> TransformComments.transform
+        //todo: enhancement: extract Namespaces from Attributes and open
 
     let getFsFileOut bridge =
         let program = createProgram bridge
@@ -182,7 +185,7 @@ module internal Bridge =
         {
             // use the F# file name as the module namespace
             // TODO ensure valid name
-            Namespace = nameSpace
+            Namespace = fixRootModuleName nameSpace
             Opens =
                 [
                     "System"
@@ -193,4 +196,3 @@ module internal Bridge =
             AbbrevTypes = []
         }
         |> fixFsFileOut
-

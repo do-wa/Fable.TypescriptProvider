@@ -31,13 +31,13 @@ let AwesomeButton props : Fable.React.ReactElement = unbox AwesomeButtonModule.A
 type AwesomeButtonProps = AwesomeButtonModule.AwesomeButtonProps
 
 let awesomeButtonStyles : obj = importDefault "react-awesome-button/src/styles/styles.scss";
-
+ 
 [<ReactComponent>]
 let awesomeButtonShowcase() = 
-    let onPress = (fun (x:obj) -> x) 
     Html.div [
         prop.children [
             AwesomeButton [
+                
                 AwesomeButtonProps.onPress(fun () -> Browser.Dom.window.alert(sprintf "On %s, you liked some TypeProvider!" (System.DateTime.Now.ToString())))
                 AwesomeButtonProps.cssModule awesomeButtonStyles
                 AwesomeButtonProps.type' "primary"
@@ -48,6 +48,17 @@ let awesomeButtonShowcase() =
         ]
     ]
 
+type FramerMotion = Import<"default", "framer-motion">
+
+//type RechartModule = Import<"LineChart", "recharts">
+
+//let LineChart props : Fable.React.ReactElement = unbox RechartModule
+
+//[<ReactComponent>]
+//let rechartsShowcase() =
+//    Html.div [
+//        Html.text "Hello"
+//    ]
 
 [<ReactComponent>]
 let ShowCase(props: ShowCaseProps) = Html.div [
@@ -79,5 +90,6 @@ let Show() = Html.div [
                     ] 
                 ShowCase({ moduleName = "left-pad"; showCase = leftPadShowCase() })
                 ShowCase({ moduleName = "react-awesome-button"; showCase = awesomeButtonShowcase() })
+                //ShowCase({ moduleName = "recharts"; showCase = rechartsShowcase() })
             ]
     ]

@@ -57,7 +57,12 @@ let createEnumNameParts (name: string) =
 
 let capitalize (input: string): string =
     if String.IsNullOrWhiteSpace input then ""
-    else sprintf "%c%s" (Char.ToUpper input.[0]) (input.Substring 1)
+    else 
+        // error in fable: https://github.com/fable-compiler/Fable/issues/2398
+        //    first char is `%` -> `%c` is `%` -> exception
+        // sprintf "%c%s" (Char.ToUpper input.[0]) (input.Substring 1)
+        // workaround for now:
+        (Char.ToUpper input.[0] |> string) + (input.Substring 1)
 
 let lowerFirst (input: string): string =
     if String.IsNullOrWhiteSpace input then ""
@@ -108,7 +113,9 @@ let escapeWord (s: string) =
     if String.IsNullOrEmpty s then ""
     else
         let s = s.Replace("'","") // remove single quotes
-        if Keywords.reserved.Contains s
+        if s.StartsWith "``" && s.EndsWith "``" then
+            s
+        elif Keywords.reserved.Contains s
             || Keywords.keywords.Contains s
             || s.IndexOfAny [|'-';'/';'$'|] <> -1 // invalid chars
             || (s.Length > 0 && Char.IsDigit (s, 0))
@@ -225,3 +232,7 @@ let fixNamespaceString (name: string): string =
             let parts = parts |> List.ofArray |> List.rev
             let parts = [parts.Head] @ parts.Tail |> List.map fixModuleName
             parts |> List.rev |> String.concat "."
+
+let fixRootModuleName (name: string): string =
+    name
+    |> escapeWord
